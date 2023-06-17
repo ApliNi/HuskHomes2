@@ -81,13 +81,16 @@ Note that these permission-set values override the values set in the plugin conf
 ## Other Permissions
 
 <details>
-<summary>Return to where you died with /back</summary>
+<summary>Return to last position or death with /back</summary>
 
-This permission controls whether users can return to where they died. Note that return by death must be enabled in the plugin [[config files]] for this to work.
+These permissions control what the user can do with the back command, including the ability to return to their last position or to where they died.
 
-| Command                    | Description                           | Permission                     | Default |
-|----------------------------|---------------------------------------|--------------------------------|:-------:|
-| `/back` (after respawning) | Use /back to return to where you died | `huskhomes.command.back.death` |    ✅    |
+| Command                    | Description                                            | Permission                        | Default |
+|----------------------------|--------------------------------------------------------|-----------------------------------|:-------:|
+| `/back` (after respawning) | Use /back to return to where you died&dagger;          | `huskhomes.command.back.death`    |    ✅    |
+| `/back`                    | Use /back to return to your previous teleport position | `huskhomes.command.back.previous` |    ✅    |
+
+&dagger;Note that return by death must be enabled in the plugin [[config files]] for this to work.
 </details>
 
 <details>
@@ -106,19 +109,17 @@ These permissions allow you to make a home public/private (toggling its privacy)
 
 
 <details>
-<summary>Cooldown, warmup and economy bypasses</summary>
+<summary>Bypass teleport warmup, cooldowns & economy checks</summary>
 
-These permissions let you bypass teleportation warmup checks, rtp cooldown checks and economy checks
+These permissions let you bypass teleportation warmup checks, cooldown, and economy checks
 
-| Description                                | Permission                              | Default |
-|--------------------------------------------|-----------------------------------------|:-------:|
-| Bypass timed teleportation warmups&dagger; | `huskhomes.bypass_teleport_warmup`      | Not set |
-| Bypass economy checks                      | `huskhomes.bypass_economy_checks`       | Not set |
-| Bypass the cooldown on `/rtp`&ddagger;     | `huskhomes.command.rtp.bypass_cooldown` |    ❌    |
+| Description                                | Permission                         | Default |
+|--------------------------------------------|------------------------------------|:-------:|
+| Bypass timed teleportation warmups&dagger; | `huskhomes.bypass_teleport_warmup` | Not set |
+| Bypass [cooldown checks](cooldowns)        | `huskhomes.bypass_cooldowns`       | Not set |
+| Bypass [economy checks](economy-hook)      | `huskhomes.bypass_economy_checks`  | Not set |
 
-&dagger;This is not effective when the teleport warmup time is set `<= 0` in the config file.
-
-&ddagger;This is not effective when the /rtp cooldown time is set `<= 0` in the config file.
+&dagger;This is not effective when the teleport warmup time is set to `<= 0` in the config file.
 </details>
 
 <details>
