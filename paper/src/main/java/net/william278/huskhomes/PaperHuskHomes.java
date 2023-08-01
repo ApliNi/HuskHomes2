@@ -27,8 +27,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class PaperHuskHomes extends BukkitHuskHomes {
 
@@ -45,16 +43,10 @@ public class PaperHuskHomes extends BukkitHuskHomes {
     @Override
     public List<Command> registerCommands() {
         return Arrays.stream(BukkitCommand.Type.values())
-                .map(type -> {
-                    final Command command = type.getCommand();
-                    if (!getSettings().isCommandDisabled(command)) {
-                        new PaperCommand(command, this).register();
-                        return command;
-                    }
-                    return null;
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .map((type) -> type.createCommand(this))
+                .filter((command) -> !this.getSettings().isCommandDisabled(command))
+                .peek((command) -> new PaperCommand(command, this).register())
+                .toList();
     }
 
 }
