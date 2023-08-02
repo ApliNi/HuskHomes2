@@ -33,6 +33,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
+import static org.apache.commons.text.StringEscapeUtils.unescapeHtml4;
+
 /**
  * Hook to display warps and public homes on Dynmap.
  */
@@ -82,15 +84,34 @@ public class DynmapHook extends MapHook {
         plugin.runSync(() -> {
             final String markerId = home.getOwner().getUuid() + ":" + home.getUuid();
             getPublicHomesMarkerSet().ifPresent(markerSet -> {
-                markerSet.getMarkers().stream()
-                        .filter(marker -> marker.getMarkerID().equals(markerId))
-                        .forEach(Marker::deleteMarker);
-                markerSet.createMarker(markerId, home.getName(), home.getWorld().getName(),
-                                home.getX(), home.getY(), home.getZ(),
-                                getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
-                        .setDescription(MarkerInformationPopup.publicHome(
-                                home, ICON_PATH + PUBLIC_HOME_MARKER_IMAGE_NAME, plugin
-                        ).toHtml());
+
+                if (plugin.getSettings().dynmapCustomHtml) {
+
+                    markerSet.getMarkers().stream()
+                            .filter(marker -> marker.getMarkerID().equals(markerId))
+                            .forEach(Marker::deleteMarker);
+                    markerSet.createMarker(markerId, home.getName(), home.getWorld().getName(),
+                                    home.getX(), home.getY(), home.getZ(),
+                                    getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
+                            .setDescription(
+                                    plugin.getSettings().dynmapCustomHtml_home
+                                            .replace("%name%", unescapeHtml4(home.getName()))
+                                            .replace("%owner%", unescapeHtml4(home.getOwner().getUsername()))
+                                            .replace("%description%", unescapeHtml4(plugin.getLocales().wrapText(home.getMeta().getDescription(), 60)))
+                            );
+
+                } else {
+
+                    markerSet.getMarkers().stream()
+                            .filter(marker -> marker.getMarkerID().equals(markerId))
+                            .forEach(Marker::deleteMarker);
+                    markerSet.createMarker(markerId, home.getName(), home.getWorld().getName(),
+                                    home.getX(), home.getY(), home.getZ(),
+                                    getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
+                            .setDescription(MarkerInformationPopup.publicHome(
+                                    home, ICON_PATH + PUBLIC_HOME_MARKER_IMAGE_NAME, plugin
+                            ).toHtml());
+                }
             });
         });
     }
@@ -121,15 +142,32 @@ public class DynmapHook extends MapHook {
         plugin.runSync(() -> {
             final String markerId = warp.getUuid().toString();
             getWarpsMarkerSet().ifPresent(markerSet -> {
-                markerSet.getMarkers().stream()
-                        .filter(marker -> marker.getMarkerID().equals(markerId))
-                        .forEach(Marker::deleteMarker);
-                markerSet.createMarker(markerId, warp.getName(), warp.getWorld().getName(),
-                                warp.getX(), warp.getY(), warp.getZ(),
-                                getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
-                        .setDescription(MarkerInformationPopup.warp(
-                                warp, ICON_PATH + WARP_MARKER_IMAGE_NAME, plugin
-                        ).toHtml());
+
+                if (plugin.getSettings().dynmapCustomHtml) {
+
+                    markerSet.getMarkers().stream()
+                            .filter(marker -> marker.getMarkerID().equals(markerId))
+                            .forEach(Marker::deleteMarker);
+                    markerSet.createMarker(markerId, warp.getName(), warp.getWorld().getName(),
+                                    warp.getX(), warp.getY(), warp.getZ(),
+                                    getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
+                            .setDescription(
+                                    plugin.getSettings().dynmapCustomHtml_warp
+                                            .replace("%name%", unescapeHtml4(warp.getName()))
+                                            .replace("%description%", unescapeHtml4(plugin.getLocales().wrapText(warp.getMeta().getDescription(), 60)))
+                            );
+                } else {
+
+                    markerSet.getMarkers().stream()
+                            .filter(marker -> marker.getMarkerID().equals(markerId))
+                            .forEach(Marker::deleteMarker);
+                    markerSet.createMarker(markerId, warp.getName(), warp.getWorld().getName(),
+                                    warp.getX(), warp.getY(), warp.getZ(),
+                                    getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
+                            .setDescription(MarkerInformationPopup.warp(
+                                    warp, ICON_PATH + WARP_MARKER_IMAGE_NAME, plugin
+                            ).toHtml());
+                }
             });
         });
     }

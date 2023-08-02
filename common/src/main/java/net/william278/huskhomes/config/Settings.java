@@ -282,6 +282,17 @@ public class Settings {
     private boolean warpsOnMap = true;
 
 
+    @YamlComment("在这里编辑Dynmap的HTML文本")
+    @YamlKey("map_hook.dynmap_custom_html.enabled")
+    public boolean dynmapCustomHtml = true;
+
+    @YamlKey("map_hook.dynmap_custom_html.home")
+    public String dynmapCustomHtml_home = "<p>%owner% :: %name%</p><p>%description%</p><p>/phome %owner%.%name%</p>";
+
+    @YamlKey("map_hook.dynmap_custom_html.warp")
+    public String dynmapCustomHtml_warp = "<p>%name%</p><p>%description%</p><p>/warp %name%</p>";
+
+
     // Disabled commands
     @YamlComment("List of commands to disable (e.g. ['/home', '/warp'] to disable /home and /warp)")
     @YamlKey("disabled_commands")
