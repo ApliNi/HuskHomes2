@@ -287,10 +287,10 @@ public class Settings {
     public boolean dynmapCustomHtml = true;
 
     @YamlKey("map_hook.dynmap_custom_html.home")
-    public String dynmapCustomHtml_home = "<p>%owner% :: %name%</p><p>%description%</p><p>/phome %owner%.%name%</p>";
+    public String dynmapCustomHtmlHome = "<p>%owner% :: %name%</p><p>%description%</p><p>/phome %owner%.%name%</p>";
 
     @YamlKey("map_hook.dynmap_custom_html.warp")
-    public String dynmapCustomHtml_warp = "<p>%name%</p><p>%description%</p><p>/warp %name%</p>";
+    public String dynmapCustomHtmlWarp = "<p>%name%</p><p>%description%</p><p>/warp %name%</p>";
 
 
     // Disabled commands

@@ -94,10 +94,12 @@ public class DynmapHook extends MapHook {
                                     home.getX(), home.getY(), home.getZ(),
                                     getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(
-                                    plugin.getSettings().dynmapCustomHtml_home
+                                    plugin.getSettings().dynmapCustomHtmlHome
                                             .replace("%name%", unescapeHtml4(home.getName()))
                                             .replace("%owner%", unescapeHtml4(home.getOwner().getUsername()))
-                                            .replace("%description%", unescapeHtml4(plugin.getLocales().wrapText(home.getMeta().getDescription(), 60)))
+                                            .replace("%description%", unescapeHtml4(
+                                                    plugin.getLocales().wrapText(
+                                                            home.getMeta().getDescription(), 60)))
                             );
 
                 } else {
@@ -152,9 +154,11 @@ public class DynmapHook extends MapHook {
                                     warp.getX(), warp.getY(), warp.getZ(),
                                     getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(
-                                    plugin.getSettings().dynmapCustomHtml_warp
+                                    plugin.getSettings().dynmapCustomHtmlWarp
                                             .replace("%name%", unescapeHtml4(warp.getName()))
-                                            .replace("%description%", unescapeHtml4(plugin.getLocales().wrapText(warp.getMeta().getDescription(), 60)))
+                                            .replace("%description%", unescapeHtml4(
+                                                    plugin.getLocales().wrapText(
+                                                            warp.getMeta().getDescription(), 60)))
                             );
                 } else {
 
