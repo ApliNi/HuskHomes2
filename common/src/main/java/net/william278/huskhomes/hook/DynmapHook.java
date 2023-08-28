@@ -136,6 +136,13 @@ public class DynmapHook extends MapHook {
     }
 
     @Override
+    public void clearHomes(@NotNull String worldName) {
+        plugin.runSync(() -> getPublicHomesMarkerSet().ifPresent(markerSet -> markerSet.getMarkers().stream()
+                .filter(marker -> marker.getWorld().equals(worldName))
+                .forEach(Marker::deleteMarker)));
+    }
+
+    @Override
     public void updateWarp(@NotNull Warp warp) {
         if (!isValidPosition(warp)) {
             return;
@@ -189,6 +196,13 @@ public class DynmapHook extends MapHook {
     @Override
     public void clearWarps() {
         plugin.runSync(() -> getWarpsMarkerSet().ifPresent(markerSet -> markerSet.getMarkers()
+                .forEach(Marker::deleteMarker)));
+    }
+
+    @Override
+    public void clearWarps(@NotNull String worldName) {
+        plugin.runSync(() -> getWarpsMarkerSet().ifPresent(markerSet -> markerSet.getMarkers().stream()
+                .filter(marker -> marker.getWorld().equals(worldName))
                 .forEach(Marker::deleteMarker)));
     }
 
