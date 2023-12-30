@@ -27,6 +27,7 @@ import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.platform.fabric.FabricServerAudiences;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
@@ -171,7 +172,7 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
         initialize("hooks", (plugin) -> {
             this.registerHooks();
 
-            if (hooks.size() > 0) {
+            if (!hooks.isEmpty()) {
                 hooks.forEach(hook -> {
                     try {
                         hook.initialize();
@@ -220,6 +221,12 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
         return minecraftServer.getPlayerManager().getPlayerList()
                 .stream().map(user -> (OnlineUser) FabricUser.adapt(user, this))
                 .toList();
+    }
+
+    @NotNull
+    @Override
+    public Audience getAudience(@NotNull UUID user) {
+        return audiences.player(user);
     }
 
     @Override
