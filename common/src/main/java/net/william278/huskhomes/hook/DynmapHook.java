@@ -20,6 +20,7 @@
 package net.william278.huskhomes.hook;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.position.Warp;
 import net.william278.huskhomes.user.User;
@@ -59,12 +60,13 @@ public class DynmapHook extends MapHook {
             public void apiEnabled(@NotNull DynmapCommonAPI dynmapCommonAPI) {
                 dynmapApi = dynmapCommonAPI;
 
-                if (plugin.getSettings().doPublicHomesOnMap()) {
+                final Settings.MapHookSettings settings = plugin.getSettings().getMapHook();
+                if (settings.isShowPublicHomes()) {
                     getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow();
                     dynmapApi.getMarkerAPI().createMarkerSet(getPublicHomesKey(),
                             getPublicHomesMarkerSetName(), dynmapApi.getMarkerAPI().getMarkerIcons(), false);
                 }
-                if (plugin.getSettings().doWarpsOnMap()) {
+                if (settings.isShowWarps()) {
                     getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow();
                     dynmapApi.getMarkerAPI().createMarkerSet(getWarpsKey(),
                             getWarpsMarkerSetName(), dynmapApi.getMarkerAPI().getMarkerIcons(), false);
@@ -82,10 +84,11 @@ public class DynmapHook extends MapHook {
         }
 
         plugin.runSync(() -> {
+            final Settings.MapHookSettings settings = plugin.getSettings().getMapHook();
             final String markerId = home.getOwner().getUuid() + ":" + home.getUuid();
             getPublicHomesMarkerSet().ifPresent(markerSet -> {
 
-                if (plugin.getSettings().dynmapCustomHtml) {
+                if (settings.isEditDynmapHtml()) {
 
                     markerSet.getMarkers().stream()
                             .filter(marker -> marker.getMarkerID().equals(markerId))
@@ -94,12 +97,11 @@ public class DynmapHook extends MapHook {
                                     home.getX(), home.getY(), home.getZ(),
                                     getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(
-                                    plugin.getSettings().dynmapCustomHtmlHome
+                                    settings.getDynmapHomeHTML()
                                             .replace("%name%", unescapeHtml4(home.getName()))
                                             .replace("%owner%", unescapeHtml4(home.getOwner().getUsername()))
-                                            .replace("%description%", unescapeHtml4(
-                                                    plugin.getLocales().wrapText(
-                                                            home.getMeta().getDescription(), 60)))
+                                            .replace("%description%",
+                                                    unescapeHtml4(home.getMeta().getDescription()))
                             );
 
                 } else {
@@ -111,7 +113,7 @@ public class DynmapHook extends MapHook {
                                     home.getX(), home.getY(), home.getZ(),
                                     getMarkerIcon(PUBLIC_HOME_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(MarkerInformationPopup.publicHome(
-                                    home, ICON_PATH + PUBLIC_HOME_MARKER_IMAGE_NAME, plugin
+                                    home, ICON_PATH + PUBLIC_HOME_MARKER_IMAGE_NAME
                             ).toHtml());
                 }
             });
@@ -149,10 +151,11 @@ public class DynmapHook extends MapHook {
         }
 
         plugin.runSync(() -> {
+            final Settings.MapHookSettings settings = plugin.getSettings().getMapHook();
             final String markerId = warp.getUuid().toString();
             getWarpsMarkerSet().ifPresent(markerSet -> {
 
-                if (plugin.getSettings().dynmapCustomHtml) {
+                if (settings.isEditDynmapHtml()) {
 
                     markerSet.getMarkers().stream()
                             .filter(marker -> marker.getMarkerID().equals(markerId))
@@ -161,11 +164,10 @@ public class DynmapHook extends MapHook {
                                     warp.getX(), warp.getY(), warp.getZ(),
                                     getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(
-                                    plugin.getSettings().dynmapCustomHtmlWarp
+                                    settings.getDynmapWarpHTML()
                                             .replace("%name%", unescapeHtml4(warp.getName()))
-                                            .replace("%description%", unescapeHtml4(
-                                                    plugin.getLocales().wrapText(
-                                                            warp.getMeta().getDescription(), 60)))
+                                            .replace("%description%",
+                                                    unescapeHtml4(warp.getMeta().getDescription()))
                             );
                 } else {
 
@@ -176,7 +178,7 @@ public class DynmapHook extends MapHook {
                                     warp.getX(), warp.getY(), warp.getZ(),
                                     getMarkerIcon(WARP_MARKER_IMAGE_NAME).orElseThrow(), false)
                             .setDescription(MarkerInformationPopup.warp(
-                                    warp, ICON_PATH + WARP_MARKER_IMAGE_NAME, plugin
+                                    warp, ICON_PATH + WARP_MARKER_IMAGE_NAME
                             ).toHtml());
                 }
             });
