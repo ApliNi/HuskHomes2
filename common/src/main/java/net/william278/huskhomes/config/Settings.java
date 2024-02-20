@@ -398,12 +398,16 @@ public final class Settings {
         @Comment("Show warps on the web map")
         private boolean showWarps = true;
 
-        @Comment("在这里编辑Dynmap的HTML文本")
+        @Comment("在这里编辑 Dynmap 的 HTML 文本")
         private boolean editDynmapHtml = true;
 
-        private String dynmapCustomHtmlHome = "<p>%owner% :: %name%</p><p>%description%</p><p>/phome %owner%.%name%</p>";
+        @Comment("Home HTML")
+        private String dynmapHomeHTML =
+                "<p>%owner% :: %name%</p><p>%description%</p><p>/phome %owner%.%name%</p>";
 
-        private String dynmapCustomHtmlWarp = "<p>%name%</p><p>%description%</p><p>/warp %name%</p>";
+        @Comment("Warp HTML")
+        private String dynmapWarpHTML =
+                "<p>%name%</p><p>%description%</p><p>/warp %name%</p>";
     }
 
     @Comment("List of commands to disable (e.g. ['/home', '/warp'] to disable /home and /warp)")
