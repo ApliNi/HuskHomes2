@@ -19,27 +19,35 @@
 
 package net.william278.huskhomes;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import io.netty.buffer.ByteBufUtil;
+import com.pokeskies.fabricpluginmessaging.PluginMessageEvent;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.PacketSender;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.platform.fabric.FabricServerAudiences;
-import net.minecraft.network.PacketByteBuf;
+//#if MC>=12104
+import net.kyori.adventure.platform.modcommon.MinecraftServerAudiences;
+//#else
+//$$ import net.kyori.adventure.platform.fabric.FabricServerAudiences;
+//#endif
+import net.minecraft.entity.Entity;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.TeleportTarget;
 import net.william278.desertwell.util.Version;
+import net.william278.huskhomes.api.FabricHuskHomesAPI;
 import net.william278.huskhomes.command.Command;
 import net.william278.huskhomes.command.FabricCommand;
 import net.william278.huskhomes.config.Locales;
@@ -47,30 +55,24 @@ import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.config.Spawn;
 import net.william278.huskhomes.database.Database;
-import net.william278.huskhomes.database.H2Database;
-import net.william278.huskhomes.database.MySqlDatabase;
-import net.william278.huskhomes.database.SqLiteDatabase;
 import net.william278.huskhomes.event.FabricEventDispatcher;
-import net.william278.huskhomes.hook.FabricImpactorEconomyHook;
+import net.william278.huskhomes.hook.FabricHookProvider;
 import net.william278.huskhomes.hook.Hook;
-import net.william278.huskhomes.hook.FabricPlaceholderAPIHook;
 import net.william278.huskhomes.listener.EventListener;
 import net.william278.huskhomes.listener.FabricEventListener;
 import net.william278.huskhomes.manager.Manager;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.PluginMessageBroker;
-import net.william278.huskhomes.network.RedisBroker;
+import net.william278.huskhomes.position.Location;
+import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
-import net.william278.huskhomes.random.NormalDistributionEngine;
 import net.william278.huskhomes.random.RandomTeleportEngine;
-import net.william278.huskhomes.user.ConsoleUser;
-import net.william278.huskhomes.user.FabricUser;
-import net.william278.huskhomes.user.OnlineUser;
-import net.william278.huskhomes.user.SavedUser;
-import net.william278.huskhomes.util.FabricSafetyResolver;
+import net.william278.huskhomes.user.*;
+import net.william278.huskhomes.util.FabricSavePositionProvider;
 import net.william278.huskhomes.util.FabricTask;
 import net.william278.huskhomes.util.UnsafeBlocks;
-import net.william278.huskhomes.util.Validator;
+import net.william278.toilet.Toilet;
+import net.william278.toilet.fabric.FabricToilet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -82,146 +84,100 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 
 @Getter
-@Setter
 @NoArgsConstructor
 public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes, FabricTask.Supplier,
-        FabricEventDispatcher, FabricSafetyResolver, ServerPlayNetworking.PlayChannelHandler {
+        FabricEventDispatcher, FabricSavePositionProvider, FabricUserProvider, FabricHookProvider {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("HuskHomes");
     private final ModContainer modContainer = FabricLoader.getInstance().getModContainer("huskhomes")
             .orElseThrow(() -> new RuntimeException("Failed to get Mod Container"));
     private final Map<String, Boolean> permissions = Maps.newHashMap();
-    private final Set<SavedUser> savedUsers = Sets.newHashSet();
-    private final ConcurrentMap<String, List<String>> globalPlayerList = Maps.newConcurrentMap();
-    private final Set<UUID> currentlyOnWarmup = Sets.newHashSet();
-    private MinecraftServer minecraftServer;
 
+    //#if MC>=12104
+    private MinecraftServerAudiences audiences;
+    //#else
+    //$$ private FabricServerAudiences audiences;
+    //#endif
+    private MinecraftServer minecraftServer;
+    private Toilet toilet;
+
+    private final Set<SavedUser> savedUsers = Sets.newHashSet();
+    private final Set<UUID> currentlyOnWarmup = Sets.newConcurrentHashSet();
+    private final Map<UUID, OnlineUser> onlineUserMap = Maps.newHashMap();
+    private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
+    private final List<Command> commands = Lists.newArrayList();
+
+    @Setter
+    private Set<Hook> hooks = Sets.newHashSet();
+    @Setter
     private Settings settings;
+    @Setter
     private Locales locales;
+    @Setter
     private Database database;
-    private Validator validator;
+    @Setter
     private Manager manager;
+    @Setter
     private EventListener eventListener;
+    @Setter
     private RandomTeleportEngine randomTeleportEngine;
+    @Setter
     private Spawn serverSpawn;
+    @Setter
     private UnsafeBlocks unsafeBlocks;
-    private List<Hook> hooks;
-    private List<Command> commands;
-    private Server server;
+    @Setter
     @Nullable
     private Broker broker;
-    private FabricServerAudiences audiences;
+    @Setter
+    @Nullable
+    private Server serverName;
 
     @Override
     public void onInitializeServer() {
-        // Get plugin version from mod container
-        this.validator = new Validator(this);
+        this.load();
+        this.loadCommands();
 
-        // Load settings and locales
-        initialize("plugin config & locale files", (plugin) -> loadConfigs());
-
-        // Pre-register commands
-        initialize("commands", (plugin) -> this.commands = registerCommands());
-
-        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            this.minecraftServer = server;
-            this.onEnable();
-        });
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> this.onDisable());
+        ServerLifecycleEvents.SERVER_STARTING.register(this::onEnable);
+        ServerLifecycleEvents.SERVER_STOPPING.register(this::onDisable);
     }
 
-    private void onEnable() {
-        // Create adventure audience
-        this.audiences = FabricServerAudiences.of(minecraftServer);
-
-        // Initialize the database
-        final Database.Type type = getSettings().getDatabase().getType();
-        initialize(type.getDisplayName() + " database connection", (plugin) -> {
-            this.database = switch (type) {
-                case MYSQL, MARIADB -> new MySqlDatabase(this);
-                case SQLITE -> new SqLiteDatabase(this);
-                case H2 -> new H2Database(this);
-            };
-
-            database.initialize();
-        });
-
-        // Initialize the manager
-        this.manager = new Manager(this);
-
-        // Initialize the network messenger if proxy mode is enabled
-        final Settings.CrossServerSettings crossServer = getSettings().getCrossServer();
-        if (crossServer.isEnabled()) {
-            initialize(crossServer.getBrokerType().getDisplayName() + " message broker", (plugin) -> {
-                broker = switch (crossServer.getBrokerType()) {
-                    case PLUGIN_MESSAGE -> new PluginMessageBroker(this);
-                    case REDIS -> new RedisBroker(this);
-                };
-                broker.initialize();
-            });
-        }
-
-        setRandomTeleportEngine(new NormalDistributionEngine(this));
-
-        // Register plugin hooks (Economy, Maps, Plan)
-        initialize("hooks", (plugin) -> {
-            this.registerHooks();
-
-            if (!hooks.isEmpty()) {
-                hooks.forEach(hook -> {
-                    try {
-                        hook.initialize();
-                    } catch (Throwable e) {
-                        log(Level.WARNING, "Failed to initialize " + hook.getName() + " hook", e);
-                    }
-                });
-                log(Level.INFO, "Registered " + hooks.size() + " mod hooks: " + hooks.stream()
-                        .map(Hook::getName)
-                        .collect(Collectors.joining(", ")));
-            }
-        });
-
-        // Register events
-        initialize("events", (plugin) -> this.eventListener = new FabricEventListener(this));
-
-        this.checkForUpdates();
+    private void onEnable(@NotNull MinecraftServer server) {
+        this.minecraftServer = server;
+        this.toilet = FabricToilet.create(getDumpOptions(), server);
+        //#if MC>=12104
+        this.audiences = MinecraftServerAudiences.of(minecraftServer);
+        //#else
+        //$$ this.audiences = FabricServerAudiences.of(minecraftServer);
+        //#endif
+        this.enable();
     }
 
-    @Override
-    public void registerHooks() {
-        HuskHomes.super.registerHooks();
-
-        // Register the impactor economy service if it is available
-        if (getSettings().getEconomy().isEnabled() && isDependencyLoaded("impactor")) {
-            getHooks().add(new FabricImpactorEconomyHook(this));
-        }
-
-        if (isDependencyLoaded("placeholder-api")) {
-            getHooks().add(new FabricPlaceholderAPIHook(this));
-        }
-    }
-
-    private void onDisable() {
-        if (this.eventListener != null) {
-            this.eventListener.handlePluginDisable();
-        }
-        if (database != null) {
-            database.terminate();
-        }
-        if (broker != null) {
-            broker.close();
-        }
+    private void onDisable(@NotNull MinecraftServer server) {
+        this.shutdown();
         if (audiences != null) {
             audiences.close();
             audiences = null;
         }
-        cancelTasks();
+    }
+
+    @Override
+    public void loadAPI() {
+        FabricHuskHomesAPI.register(this);
+    }
+
+    @Override
+    public void loadMetrics() {
+        // No metrics on Fabric
+    }
+
+    @Override
+    public void disablePlugin() {
+        onDisable(minecraftServer);
     }
 
     @Override
@@ -230,18 +186,21 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
         return new ConsoleUser(audiences.console());
     }
 
-    @Override
-    @NotNull
-    public List<OnlineUser> getOnlineUsers() {
-        return minecraftServer.getPlayerManager().getPlayerList()
-                .stream().map(user -> (OnlineUser) FabricUser.adapt(user, this))
-                .toList();
-    }
-
     @NotNull
     @Override
     public Audience getAudience(@NotNull UUID user) {
         return audiences.player(user);
+    }
+
+    @Override
+    public void setWorldSpawn(@NotNull Position position) {
+        final ServerWorld world = Adapter.adapt(position, minecraftServer);
+        if (world != null) {
+            world.setSpawnPos(
+                    BlockPos.ofFloored(position.getX(), position.getY(), position.getZ()),
+                    position.getYaw()
+            );
+        }
     }
 
     @Override
@@ -252,21 +211,12 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
     @Override
     @NotNull
     public String getServerName() {
-        return server == null ? "server" : server.getName();
+        return serverName == null ? "server" : serverName.getName();
     }
 
     @Override
-    public void setServerName(@NotNull Server server) {
-        this.server = server;
-    }
-
-    @Override
-    @NotNull
-    public Broker getMessenger() {
-        if (broker == null) {
-            throw new IllegalStateException("Attempted to access message broker when it was not initialized");
-        }
-        return broker;
+    public boolean isDependencyAvailable(@NotNull String name) {
+        return FabricLoader.getInstance().isModLoaded(name);
     }
 
     @Override
@@ -293,57 +243,60 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
     @Override
     @NotNull
     public List<World> getWorlds() {
-        final List<World> worlds = new ArrayList<>();
-        minecraftServer.getWorlds().forEach(world -> worlds.add(World.from(
-                world.getRegistryKey().getValue().asString(),
-                UUID.nameUUIDFromBytes(world.getRegistryKey().getValue().asString().getBytes())
-        )));
+        final List<World> worlds = Lists.newArrayList();
+        minecraftServer.getWorlds().forEach(world -> worlds.add(Adapter.adapt(world)));
         return worlds;
     }
 
     @Override
     @NotNull
-    public Version getVersion() {
+    public Version getPluginVersion() {
         return Version.fromString(modContainer.getMetadata().getVersion().getFriendlyString(), "-");
     }
 
+    @Override
     @NotNull
-    public List<Command> registerCommands() {
-        final List<Command> commands = FabricCommand.Type.getCommands(getPlugin());
-        CommandRegistrationCallback.EVENT.register((dispatcher, ignored, ignored2) ->
-                commands.forEach(command -> new FabricCommand(command, this).register(dispatcher)));
-        return commands;
+    public String getServerType() {
+        return String.format("fabric %s/%s", FabricLoader.getInstance()
+                .getModContainer("fabricloader").map(l -> l.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown"), minecraftServer.getVersion());
     }
 
     @Override
-    public boolean isDependencyLoaded(@NotNull String name) {
-        return FabricLoader.getInstance().isModLoaded(name)
-                || FabricLoader.getInstance().isModLoaded(name.toLowerCase(Locale.ENGLISH));
+    @NotNull
+    public Version getMinecraftVersion() {
+        return Version.fromString(minecraftServer.getVersion());
     }
 
     @Override
-    public void registerMetrics(int metricsId) {
-        // No metrics for Fabric
+    public void registerCommands(@NotNull List<Command> toRegister) {
+        CommandRegistrationCallback.EVENT.register((dispatcher, i1, i2) -> toRegister.stream().peek(commands::add)
+                .forEach((command) -> new FabricCommand(command, this).register(dispatcher)));
     }
 
     @Override
-    public void initializePluginChannels() {
-        ServerPlayNetworking.registerGlobalReceiver(new Identifier("bungeecord", "main"), this);
+    @NotNull
+    public EventListener createListener() {
+        return new FabricEventListener(this);
     }
 
-    // When the server receives a plugin message
     @Override
-    public void receive(@NotNull MinecraftServer server, @NotNull ServerPlayerEntity player,
-                        @NotNull ServerPlayNetworkHandler handler, @NotNull PacketByteBuf buf,
-                        @NotNull PacketSender responseSender) {
-        if (broker instanceof PluginMessageBroker messenger
+    public Optional<Broker> getBroker() {
+        return Optional.ofNullable(broker);
+    }
+
+    @Override
+    public void setupPluginMessagingChannels() {
+        PluginMessageEvent.EVENT.register((payload, context) -> {
+            if (broker instanceof PluginMessageBroker messenger
                 && getSettings().getCrossServer().getBrokerType() == Broker.Type.PLUGIN_MESSAGE) {
-            messenger.onReceive(
-                    PluginMessageBroker.BUNGEE_CHANNEL_ID,
-                    FabricUser.adapt(player, this),
-                    ByteBufUtil.getBytes(buf)
-            );
-        }
+                messenger.onReceive(
+                        PluginMessageBroker.BUNGEE_CHANNEL_ID,
+                        getOnlineUser(context.player()),
+                        payload.getData()
+                );
+            }
+        });
     }
 
     @Override
@@ -361,20 +314,75 @@ public class FabricHuskHomes implements DedicatedServerModInitializer, HuskHomes
         logEvent.log(message);
     }
 
-    @NotNull
-    public Map<String, Boolean> getPermissions() {
-        return permissions;
+    @Override
+    public void closeDatabase() {
+        if (database != null) {
+            database.close();
+        }
     }
 
-    @NotNull
-    public MinecraftServer getMinecraftServer() {
-        return minecraftServer;
+    @Override
+    public void closeBroker() {
+        if (broker != null) {
+            broker.close();
+        }
     }
 
     @Override
     @NotNull
     public FabricHuskHomes getPlugin() {
         return this;
+    }
+
+    public static class Adapter {
+
+        @NotNull
+        public static Location adapt(@NotNull Vec3d pos, @NotNull net.minecraft.world.World world,
+                                     float yaw, float pitch) {
+            return Position.at(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    yaw, pitch,
+                    adapt(world)
+            );
+        }
+
+        @NotNull
+        public static Position adapt(@NotNull Vec3d pos, @NotNull net.minecraft.world.World world,
+                                     float yaw, float pitch, @NotNull String server) {
+            return Position.at(adapt(pos, world, yaw, pitch), server);
+        }
+
+        @NotNull
+        public static TeleportTarget adapt(@NotNull Location location, @NotNull MinecraftServer server,
+                                           @NotNull Consumer<Entity> runAfterTeleport) {
+            return new TeleportTarget(
+                    adapt(location.getWorld(), server),
+                    new Vec3d(location.getX(), location.getY(), location.getZ()),
+                    Vec3d.ZERO,
+                    location.getYaw(),
+                    location.getPitch(),
+                    runAfterTeleport::accept
+            );
+        }
+
+        @Nullable
+        public static ServerWorld adapt(@NotNull World world, @NotNull MinecraftServer server) {
+            return server.getWorld(RegistryKey.of(RegistryKeys.WORLD, Identifier.tryParse(world.getName())));
+        }
+
+        @Nullable
+        public static ServerWorld adapt(@NotNull Position position, @NotNull MinecraftServer server) {
+            return adapt(position.getWorld(), server);
+        }
+
+        @NotNull
+        public static World adapt(@NotNull net.minecraft.world.World world) {
+            return World.from(
+                    world.getRegistryKey().getValue().asMinimalString(),
+                    UUID.nameUUIDFromBytes(world.getRegistryKey().getValue().asString().getBytes())
+            );
+        }
+
     }
 
 }

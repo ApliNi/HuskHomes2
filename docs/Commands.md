@@ -3,7 +3,7 @@ HuskHomes provides a range of commands for you to use. This page will detail the
 ## Commands & Permissions Table
 > **Command Conflicts:** If you have multiple plugins providing similar commands, you may need to [create aliases](command-conflicts) to ensure HuskHomes' commands take priority.
 
-<table align="right">
+<table align="right" style="width: max-content">
     <thead>
         <tr><th colspan="2">Key</th></tr>
     </thead>
@@ -85,26 +85,28 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td rowspan="6"><code>/edithome</code></td>
             <td><code>/edithome &lt;name&gt;</code></td>
             <td>View and edit information about a home</td>
-            <td rowspan="4"><code>huskhomes.command.edithome</code></td>
-            <td rowspan="4" align="center">✅</td>
+            <td><code>huskhomes.command.edithome</code></td>
+            <td rowspan="5" align="center">✅</td>
         </tr>
         <tr>
             <td><code>/edithome &lt;name&gt; rename &lt;new_name&gt;</code></td>
             <td>Rename a home</td>
+            <td><code>huskhomes.command.edithome.rename</code></td>
         </tr>
         <tr>
             <td><code>/edithome &lt;name&gt; description &lt;text&gt;</code></td>
             <td>Set a home's description</td>
+            <td><code>huskhomes.command.edithome.description</code></td>
         </tr>
         <tr>
             <td><code>/edithome &lt;name&gt; relocate</code></td>
             <td>Move a home to your current position</td>
+            <td><code>huskhomes.command.edithome.relocate</code></td>
         </tr>
         <tr>
             <td><code>/edithome &lt;name&gt; privacy [public|private]</code></td>
             <td>Set a home's privacy (make it public or private)</td>
             <td><code>huskhomes.command.edithome.privacy</code></td>
-            <td align="center">✅</td>
         </tr>
         <tr>
             <td><code>/edithome &lt;owner_name.home_name&gt; [args]</code></td>
@@ -172,20 +174,23 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td rowspan="4"><code>/editwarp</code></td>
             <td><code>/editwarp &lt;name&gt;</code></td>
             <td>View and edit information about a warp</td>
-            <td rowspan="4"><code>huskhomes.command.editwarp</code></td>
+            <td><code>huskhomes.command.editwarp</code></td>
             <td rowspan="4" align="center">❌</td>
         </tr>
         <tr>
             <td><code>/editwarp &lt;name&gt; rename &lt;new_name&gt;</code></td>
             <td>Rename a warp</td>
+            <td><code>huskhomes.command.editwarp.rename</code></td>
         </tr>
         <tr>
             <td><code>/editwarp &lt;name&gt; description &lt;text&gt;</code></td>
             <td>Set a warp's description</td>
+            <td><code>huskhomes.command.editwarp.description</code></td>
         </tr>
         <tr>
             <td><code>/editwarp &lt;name&gt; relocate</code></td>
             <td>Move a warp to your current position</td>
+            <td><code>huskhomes.command.editwarp.relocate</code></td>
         </tr>
         <!-- /spawn command -->
         <tr><th colspan="5">Spawn commands</th></tr>
@@ -317,21 +322,33 @@ This is a table of HuskHomes commands, how to use them, and their required permi
         <!-- /rtp command -->
         <tr><th colspan="5">Random teleport command</th></tr>
         <tr>
-            <td rowspan="3"><code>/rtp</code></td>
+            <td rowspan="5"><code>/rtp</code></td>
             <td><code>/rtp</code></td>
-            <td>Teleport randomly into the wild</td>
+            <td>Teleport randomly into the wild in the current world</td>
             <td><code>huskhomes.command.rtp</code></td>
             <td align="center">✅</td>
         </tr>
         <tr>
             <td><code>/rtp &lt;player&gt;</code></td>
-            <td>Teleport another user randomly into the wild</td>
+            <td>Teleport another player randomly into the wild</td>
             <td><code>huskhomes.command.rtp.other</code></td>
             <td align="center">❌</td>
         </tr>
         <tr>
-            <td><code>/rtp &lt;player&gt; &lt;world&gt;</code></td>
-            <td>Teleport randomly in a specific world</td>
+            <td><code>/rtp &lt;world&gt;</code></td>
+            <td>Teleport randomly in a specified world</td>
+            <td><code>huskhomes.command.rtp.world</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
+            <td><code>/rtp &lt;world&gt; &lt;server&gt;</code></td>
+            <td>Teleport randomly in a specified world on a specified server</td>
+            <td><code>huskhomes.command.rtp.world</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
+            <td><code>/rtp &lt;server&gt;</code></td>
+            <td>Teleport randomly in the current world on a specified server</td>
             <td><code>huskhomes.command.rtp.world</code></td>
             <td align="center">❌</td>
         </tr>
@@ -356,7 +373,7 @@ This is a table of HuskHomes commands, how to use them, and their required permi
         <!-- /huskhomes command -->
         <tr><th colspan="5">Plugin management command</th></tr>
         <tr>
-            <td rowspan="9"><code>/huskhomes</code></td>
+            <td rowspan="12"><code>/huskhomes</code></td>
             <td><code>/huskhomes</code></td>
             <td>Use plugin management commands</td>
             <td><code>huskhomes.command.huskhomes</code></td>
@@ -387,6 +404,12 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td align="center">❌</td>
         </tr>
         <tr>
+            <td><code>/huskhomes homeslots &lt;username&gt; [view|set|add|remove]</code></td>
+            <td>View &amp; manage a player's home slots (requires economy hook)</td>
+            <td><code>huskhomes.command.huskhomes.homeslots</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
             <td><code>/huskhomes import</code></td>
             <td>Import data from another plugin</td>
             <td><code>huskhomes.command.huskhomes.import</code></td>
@@ -406,11 +429,23 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td><code>/huskhomes delete warps &lt;world_name&gt; [server_name] [confirm]</code></td>
             <td>Delete all warps on a specific world and/or server</td>
         </tr>
+        <tr>
+            <td><code>/huskhomes status</code></td>
+            <td>View the system status debug info screen.</td>
+            <td><code>huskhomes.command.huskhomes.status</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
+            <td><code>/huskhomes dump</code></td>
+            <td>Perform a web dump of the plugin system & server status.</td>
+            <td><code>huskhomes.command.huskhomes.dump</code></td>
+            <td align="center">❌</td>
+        </tr>
     </tbody>
 </table>
 
 ### Notes
-&dagger; &mdash; If [Permission Restricted Warps](restricted-warps) are in use, the  `huskhomes.command.warp.(warp_name)` permission node will also be required to be able to view and use warps.
+&dagger; &mdash; If [Permission Restricted Warps](restricted-warps) are in use, the  `huskhomes.warp.<name>` permission node will also be required to be able to list, use, edit and delete (but not set) warps. The `huskhomes.warp.*` wildcard permission grants the ability to access all warps.
 
 &ddagger; &mdash; Requires `return_by_death` to be enabled in [`config.yml`](config-files).
 
@@ -454,6 +489,13 @@ If users have multiple permission nodes (i.e. from being in multiple permission 
 
 Note that these permission-set values override the values set in the plugin config (`max_homes`, `max_public_homes` under `general` and `free_homes` under `economy`).
 
+## Teleport warmup times
+You can change the teleport warmup time based on a permission node:
+
+* `huskhomes.teleport_warmup.<seconds>` — Determines how long this player has to wait before teleporting.
+
+HuskHomes will always take the highest node value present for this, regardless of the `stack_permission_limits` value.
+
 ## Bypass permission nodes
 
 These permissions let you bypass teleportation warmup checks, cooldown, and economy checks
@@ -464,4 +506,4 @@ These permissions let you bypass teleportation warmup checks, cooldown, and econ
 | Bypass [cooldown checks](cooldowns)        | `huskhomes.bypass_cooldowns`       | Not set |
 | Bypass [economy checks](economy-hook)      | `huskhomes.bypass_economy_checks`  | Not set |
 
-&dagger;This is not effective when the teleport warmup time is set to `<= 0` in the config file.
+&dagger;This is not effective when the teleport warmup time is set to `<= 0` in the config file. This permission also bypasses the numerical teleport warmup time permission detailed above.

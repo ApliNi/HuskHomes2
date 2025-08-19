@@ -1,7 +1,7 @@
 This page contains the configuration structure for HuskHomes.
 
 ## Configuration structure
-📁 `plugins/HuskHomes/` (Spigot) OR `config/huskhomes/` (Fabric, Sponge)
+📁 `plugins/HuskHomes/` (Spigot) OR `config/huskhomes/` (Fabric)
   - 📄 `config.yml`: General plugin configuration
   - 📄 `server.yml`: (Cross-server setups only) Server ID configuration
   - 📄 `spawn.yml`: Local saved server spawn position. Use /setspawn to generate this file
@@ -26,9 +26,9 @@ language: en-gb
 check_for_updates: true
 # Database settings
 database:
-  # Type of database to use (SQLITE, H2, MYSQL, or MARIADB)
+  # Type of database to use (SQLITE, H2, MYSQL, MARIADB, or POSTGRESQL)
   type: SQLITE
-  # Specify credentials here if you are using MYSQL or MARIADB
+  # Specify credentials here if you are using MYSQL, MARIADB, or POSTGRESQL
   credentials:
     host: localhost
     port: 3306
@@ -36,7 +36,7 @@ database:
     username: root
     password: pa55w0rd
     parameters: ?autoReconnect=true&useSSL=false&useUnicode=true&characterEncoding=UTF-8
-  # MYSQL / MARIADB database Hikari connection pool properties
+  # MYSQL / MARIADB / POSTGRESQL database Hikari connection pool properties
   # Don't modify this unless you know what you're doing!
   pool_options:
     size: 12
@@ -61,20 +61,24 @@ general:
   max_public_homes: 10
   # Whether permission limits (i.e. huskhomes.max_homes.<number>) should stack if the user inherits multiple nodes.
   stack_permission_limits: false
-  # Whether users require a permission (huskhomes.command.warp.<warp_name>) to use warps
+  # Whether users require a permission (huskhomes.warp.<warp_name>) to use warps
   permission_restrict_warps: false
   # How long a player has to stand still and not take damage for when teleporting (in seconds) 
   teleport_warmup_time: 5
+  # Whether the teleport warmup timer should be cancelled if the player takes damage
+  teleport_warmup_cancel_on_damage: true
+  # Whether the teleport warmup timer should be cancelled if the player moves
+  teleport_warmup_cancel_on_move: true
   # Where the teleport warmup timer should display (CHAT, ACTION_BAR, TITLE, SUBTITLE or NONE)
   teleport_warmup_display: ACTION_BAR
+  # How long the player should be invulnerable for after teleporting (in seconds)
+  teleport_invulnerability_time: 0
   # How long before received teleport requests expire (in seconds)
   teleport_request_expiry_time: 60
   # Whether /tpahere should use the location of the sender when sent. Docs: https://william278.net/docs/huskhomes/strict-tpahere/
   strict_tpa_here_requests: true
   # How many items should be displayed per-page in chat menu lists
   list_items_per_page: 12
-  # Whether to provide modern, rich TAB suggestions for commands (if available)
-  brigadier_tab_completion: true
   # Whether the user should always be put back at the /spawn point when they die (ignores beds/respawn anchors)
   always_respawn_at_spawn: false
   # Whether teleportation should be carried out async (ensuring chunks load before teleporting)
@@ -101,6 +105,9 @@ general:
     return_by_death: true
     # Whether /back should work with other plugins that use the PlayerTeleportEvent (can conflict)
     save_on_teleport_event: false
+    # List of world names where the /back command cannot RETURN the player to.
+    # A user's last position won't be updated if they die or teleport from these worlds, but they still will be able to use the command while IN the world
+    restricted_worlds: []
   # Settings for sound effects
   sound_effects:
     # Whether to play sound effects
@@ -118,7 +125,7 @@ cross_server:
   # The cluster ID, for if you're networking multiple separate groups of HuskHomes-enabled servers.
   # Do not change unless you know what you're doing
   cluster_id: main
-  # Type of network message broker to ues for data synchronization (PLUGIN_MESSAGE or REDIS)
+  # Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)
   broker_type: PLUGIN_MESSAGE
   # Settings for if you're using REDIS as your message broker
   redis:
@@ -175,6 +182,14 @@ economy:
     RANDOM_TELEPORT: 25.0
   # Specify how many homes players can set for free, before they need to pay for more slots
   free_home_slots: 5
+# Plan hook settings. Docs: https://william278.net/docs/huskhomes/plan-hook
+plan:
+  # Hook into Player Analytics to provide HuskHomes statistics in your web dashboard
+  enabled: true
+# LuckPerms hook settings. Docs: https://william278.net/docs/huskhomes/luckperms-hook
+luckperms:
+  # Hook into LuckPerms for more accurate numerical permission calculations
+  enabled: true
 # Web map hook settings. Docs: https://william278.net/docs/huskhomes/map-hooks
 map_hook:
   # Display public homes/warps on your Dynmap, BlueMap or Pl3xMap

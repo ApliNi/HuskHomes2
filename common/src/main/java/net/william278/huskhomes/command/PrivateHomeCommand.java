@@ -30,7 +30,11 @@ import java.util.List;
 public class PrivateHomeCommand extends HomeCommand {
 
     protected PrivateHomeCommand(@NotNull HuskHomes plugin) {
-        super("home", List.of(), plugin);
+        super(
+                List.of("home"),
+                PositionCommandType.HOME,
+                plugin
+        );
     }
 
     @Override
@@ -48,8 +52,8 @@ public class PrivateHomeCommand extends HomeCommand {
                 super.execute(executor, homes.get(0), args);
                 return;
             }
-            plugin.getCommand(PrivateHomeListCommand.class)
-                    .ifPresent(command -> command.showHomeList(executor, user.getUsername(), 1));
+            plugin.getCommand(HomeListCommand.class)
+                    .ifPresent(command -> command.showHomeList(executor, user.getName(), 1));
             return;
         }
         super.execute(executor, args);

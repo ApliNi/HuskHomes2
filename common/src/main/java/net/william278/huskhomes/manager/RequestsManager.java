@@ -35,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * Manages {@link TeleportRequest}s between players.
@@ -68,7 +69,7 @@ public class RequestsManager {
      * @param recipient the {@link User} recipient of the request
      */
     public void addTeleportRequest(@NotNull TeleportRequest request, @NotNull User recipient) {
-        this.requests.computeIfAbsent(recipient.getUuid(), uuid -> new LinkedList<>()).addFirst(request);
+        this.requests.computeIfAbsent(recipient.getUuid(), uuid -> new ConcurrentLinkedDeque<>()).addFirst(request);
     }
 
     /**
@@ -91,7 +92,7 @@ public class RequestsManager {
      * @return the last received request, if present
      */
     public Optional<TeleportRequest> getLastTeleportRequest(@NotNull User recipient) {
-        return this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream().findFirst();
+        return this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream().findFirst();
     }
 
     /**
@@ -106,34 +107,36 @@ public class RequestsManager {
      * @return the last unexpired teleport request received from the requester, if present
      */
     public Optional<TeleportRequest> getTeleportRequest(@NotNull String requesterName, @NotNull User recipient) {
-        return this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream()
+        return this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream()
                 .filter(request -> request.getRequesterName().equalsIgnoreCase(requesterName))
                 .filter(request -> !request.hasExpired())
                 .findFirst()
-                .or(() -> this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream()
+                .or(() -> this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream()
                         .filter(request -> request.getRequesterName().equalsIgnoreCase(requesterName))
                         .findFirst());
     }
 
     public void sendTeleportAllRequest(@NotNull OnlineUser requester) {
-        final long expiry = Instant.now().getEpochSecond()
-                + plugin.getSettings().getGeneral().getTeleportRequestExpiryTime();
-        final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
+        final long expiry = Instant.now().getEpochSecond() + plugin.getSettings()
+                .getGeneral().getTeleportRequestExpiryTime();
+
+        // Send requests locally
         for (OnlineUser onlineUser : plugin.getOnlineUsers()) {
+            final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
             if (onlineUser.equals(requester)) {
                 continue;
             }
-            request.setRecipientName(onlineUser.getUsername());
+            request.setRecipientName(onlineUser.getName());
             sendLocalTeleportRequest(request, onlineUser);
         }
 
-        if (plugin.getSettings().getCrossServer().isEnabled()) {
-            Message.builder()
-                    .type(Message.Type.TELEPORT_REQUEST)
-                    .payload(Payload.withTeleportRequest(request))
-                    .target(Message.TARGET_ALL)
-                    .build().send(plugin.getMessenger(), requester);
-        }
+        // Send a request globally
+        final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
+        plugin.getBroker().ifPresent(b -> Message.builder()
+                .type(Message.MessageType.TELEPORT_REQUEST)
+                .payload(Payload.teleportRequest(request))
+                .target(Message.TARGET_ALL, Message.TargetType.PLAYER)
+                .build().send(b, requester));
     }
 
     /**
@@ -142,13 +145,18 @@ public class RequestsManager {
      * @param requester  The user making the request
      * @param targetUser The user to send the request to
      * @param type       The type of request to send
+     * @param callback   A callback to run after the request has been sent (and the event has not been cancelled)
      */
     public void sendTeleportRequest(@NotNull OnlineUser requester, @NotNull String targetUser,
-                                    @NotNull TeleportRequest.Type type) throws IllegalArgumentException {
+                                    @NotNull TeleportRequest.Type type, @NotNull Runnable callback) throws IllegalArgumentException {
         final long expiry = Instant.now().getEpochSecond()
                 + plugin.getSettings().getGeneral().getTeleportRequestExpiryTime();
         final TeleportRequest request = new TeleportRequest(requester, type, expiry);
-        final Optional<OnlineUser> localTarget = plugin.getOnlineUser(targetUser);
+        request.setRecipientName(targetUser);
+
+        // Lookup the user locally first. If there's a username match globally, perform an exact local check
+        final Optional<OnlineUser> localTarget = plugin.isUserOnlineGlobally(targetUser)
+                ? plugin.getOnlineUserExact(targetUser) : plugin.getOnlineUser(targetUser);
         if (localTarget.isPresent()) {
             if (localTarget.get().equals(requester)) {
                 throw new IllegalArgumentException("Cannot send a teleport request to yourself");
@@ -157,18 +165,26 @@ public class RequestsManager {
                 throw new IllegalArgumentException("Cannot send a teleport request to a vanished player");
             }
             plugin.fireEvent(plugin.getSendTeleportRequestEvent(requester, request),
-                    (event -> sendLocalTeleportRequest(request, localTarget.get())));
+                    (event -> {
+                        sendLocalTeleportRequest(request, localTarget.get());
+                        callback.run();
+                    }));
             return;
         }
 
         // If the player couldn't be found locally, send the request cross-server
         if (plugin.getSettings().getCrossServer().isEnabled()) {
-            request.setRecipientName(targetUser);
-            plugin.fireEvent(plugin.getSendTeleportRequestEvent(requester, request), (event -> Message.builder()
-                    .type(Message.Type.TELEPORT_REQUEST)
-                    .payload(Payload.withTeleportRequest(request))
-                    .target(targetUser)
-                    .build().send(plugin.getMessenger(), requester)));
+            plugin.fireEvent(
+                    plugin.getSendTeleportRequestEvent(requester, request),
+                    (event -> {
+                        plugin.getBroker().ifPresent(b -> Message.builder()
+                                .type(Message.MessageType.TELEPORT_REQUEST)
+                                .payload(Payload.teleportRequest(request))
+                                .target(targetUser, Message.TargetType.PLAYER)
+                                .build().send(b, requester));
+                        callback.run();
+                    })
+            );
             return;
         }
         throw new IllegalArgumentException("Player not found");
@@ -181,7 +197,7 @@ public class RequestsManager {
      * @param recipient The online recipient of the request
      */
     public void sendLocalTeleportRequest(@NotNull TeleportRequest request, @NotNull OnlineUser recipient) {
-        request.setRecipientName(recipient.getUsername());
+        request.setRecipientName(recipient.getName());
 
         // Silently ignore the request if the recipient is ignoring requests or is vanished
         if (isIgnoringRequests(recipient) || recipient.isVanished()) {
@@ -298,12 +314,11 @@ public class RequestsManager {
             if (localRequester.isPresent()) {
                 handleLocalRequestResponse(localRequester.get(), request);
             } else if (plugin.getSettings().getCrossServer().isEnabled()) {
-                Message.builder()
-                        .type(Message.Type.TELEPORT_REQUEST_RESPONSE)
-                        .payload(Payload.withTeleportRequest(request))
-                        .target(request.getRequesterName())
-                        .build()
-                        .send(plugin.getMessenger(), recipient);
+                plugin.getBroker().ifPresent(b -> Message.builder()
+                        .type(Message.MessageType.TELEPORT_REQUEST_RESPONSE)
+                        .payload(Payload.teleportRequest(request))
+                        .target(request.getRequesterName(), Message.TargetType.PLAYER)
+                        .build().send(b, recipient));
             } else {
                 plugin.getLocales().getLocale("error_teleport_request_sender_not_online")
                         .ifPresent(recipient::sendMessage);

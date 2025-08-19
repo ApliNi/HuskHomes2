@@ -28,6 +28,7 @@ import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.event.ITeleportEvent;
 import net.william278.huskhomes.network.Message;
 import net.william278.huskhomes.network.Payload;
+import net.william278.huskhomes.network.PluginMessageBroker;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.util.TransactionResolver;
@@ -81,6 +82,10 @@ public class Teleport implements Completable {
      * @throws TeleportationException if the teleport fails for some reason.
      */
     public void execute() throws TeleportationException {
+        if (!teleporter.isValid()) {
+            throw new TeleportationException(TeleportationException.Type.TELEPORTER_INVALID, plugin);
+        }
+
         validateTransactions();
         resolveLocalTeleporter().ifPresentOrElse(this::executeLocal, this::executeRemote);
     }
@@ -92,12 +97,12 @@ public class Teleport implements Completable {
             if (localTarget.isPresent()) {
                 fireEvent((event) -> {
                     performTransactions();
-                    if (updateLastPosition) {
+                    if (updateLastPosition && canReturnToWorld(teleporter)) {
                         plugin.getDatabase().setLastPosition(teleporter, teleporter.getPosition());
                     }
-
                     teleporter.teleportLocally(localTarget.get().getPosition(), async);
                     this.displayTeleportingComplete(teleporter);
+                    teleporter.handleInvulnerability();
                 });
                 return;
             }
@@ -105,10 +110,10 @@ public class Teleport implements Completable {
             if (plugin.getSettings().getCrossServer().isEnabled()) {
                 fireEvent((event) -> {
                     performTransactions();
-                    Message.builder()
-                            .type(Message.Type.TELEPORT_TO_NETWORKED_POSITION)
-                            .target(username.name())
-                            .build().send(plugin.getMessenger(), executor);
+                    plugin.getBroker().ifPresent(b -> Message.builder()
+                            .type(Message.MessageType.TELEPORT_TO_NETWORKED_POSITION)
+                            .target(username.name(), Message.TargetType.PLAYER)
+                            .build().send(b, executor));
                 });
                 return;
             }
@@ -118,7 +123,7 @@ public class Teleport implements Completable {
 
         fireEvent((event) -> {
             performTransactions();
-            if (updateLastPosition) {
+            if (updateLastPosition && canReturnToWorld(teleporter)) {
                 plugin.getDatabase().setLastPosition(teleporter, teleporter.getPosition());
             }
 
@@ -127,11 +132,12 @@ public class Teleport implements Completable {
                     || target.getServer().equals(plugin.getServerName())) {
                 teleporter.teleportLocally(target, async);
                 this.displayTeleportingComplete(teleporter);
+                teleporter.handleInvulnerability();
                 return;
             }
 
             plugin.getDatabase().setCurrentTeleport(teleporter, this);
-            plugin.getMessenger().changeServer(teleporter, target.getServer());
+            plugin.getBroker().ifPresent(b -> ((PluginMessageBroker) b).changeServer(teleporter, target.getServer()));
         });
     }
 
@@ -141,23 +147,27 @@ public class Teleport implements Completable {
             throw new TeleportationException(TeleportationException.Type.TELEPORTER_NOT_FOUND, plugin);
         }
 
-        fireEvent((event) -> {
+        fireEvent((event) -> plugin.getBroker().ifPresent(b -> {
             performTransactions();
             if (target instanceof Username username) {
                 Message.builder()
-                        .type(Message.Type.TELEPORT_TO_NETWORKED_USER)
-                        .target(teleporter.name())
-                        .payload(Payload.withString(username.name()))
-                        .build().send(plugin.getMessenger(), executor);
+                        .type(Message.MessageType.TELEPORT_TO_NETWORKED_USER)
+                        .target(teleporter.name(), Message.TargetType.PLAYER)
+                        .payload(Payload.string(username.name()))
+                        .build().send(b, executor);
                 return;
             }
 
             Message.builder()
-                    .type(Message.Type.TELEPORT_TO_POSITION)
-                    .target(teleporter.name())
-                    .payload(Payload.withPosition((Position) target))
-                    .build().send(plugin.getMessenger(), executor);
-        });
+                    .type(Message.MessageType.TELEPORT_TO_POSITION)
+                    .target(teleporter.name(), Message.TargetType.PLAYER)
+                    .payload(Payload.position((Position) target))
+                    .build().send(b, executor);
+        }));
+    }
+
+    private boolean canReturnToWorld(@NotNull OnlineUser user) {
+        return plugin.getSettings().getGeneral().getBackCommand().canReturnToWorld(user.getPosition().getWorld());
     }
 
     @NotNull
@@ -202,7 +212,8 @@ public class Teleport implements Completable {
     public enum Type {
         TELEPORT(0),
         RESPAWN(1),
-        BACK(2);
+        BACK(2),
+        RANDOM_TELEPORT(3);
 
         private final int typeId;
 

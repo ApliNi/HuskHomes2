@@ -21,8 +21,12 @@ package net.william278.huskhomes.network;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import net.william278.huskhomes.position.Position;
+import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.teleport.TeleportRequest;
+import net.william278.huskhomes.user.User;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,112 +36,84 @@ import java.util.Optional;
 /**
  * Represents a payload sent in a cross-server {@link Message}.
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Payload {
 
     @Nullable
     @Expose
-    private Position position;
-
-    @Nullable
-    @Expose
-    @SerializedName("teleport_request")
-    private TeleportRequest teleportRequest;
-
-    @Nullable
-    @Expose
     private String string;
-
     @Nullable
     @Expose
-    @SerializedName("string_list")
-    private List<String> stringList;
+    private Position position;
+    @Nullable
+    @Expose
+    private World world;
+    @Nullable
+    @Expose
+    private TeleportRequest teleportRequest;
+    @Nullable
+    @Expose
+    @SerializedName("user_list")
+    private List<User> userList;
 
-    /**
-     * Returns an empty cross-server message payload.
-     *
-     * @return an empty payload
-     */
     @NotNull
     public static Payload empty() {
         return new Payload();
     }
 
-    /**
-     * Returns a payload containing a {@link Position}.
-     *
-     * @param position the position to send
-     * @return a payload containing the position
-     */
     @NotNull
-    public static Payload withPosition(@NotNull Position position) {
-        final Payload payload = new Payload();
-        payload.position = position;
-        return payload;
-    }
-
-    /**
-     * Returns a payload containing a {@link TeleportRequest}.
-     *
-     * @param teleportRequest the teleport to send
-     * @return a payload containing the teleport request
-     */
-    @NotNull
-    public static Payload withTeleportRequest(@NotNull TeleportRequest teleportRequest) {
-        final Payload payload = new Payload();
-        payload.teleportRequest = teleportRequest;
-        return payload;
-    }
-
-    /**
-     * A string field.
-     */
-    @NotNull
-    public static Payload withString(@NotNull String target) {
+    public static Payload string(@Nullable String target) {
         final Payload payload = new Payload();
         payload.string = target;
         return payload;
     }
 
-    /**
-     * A string list field.
-     */
     @NotNull
-    public static Payload withStringList(@NotNull List<String> target) {
+    public static Payload position(@Nullable Position position) {
         final Payload payload = new Payload();
-        payload.stringList = target;
+        payload.position = position;
         return payload;
     }
 
-    private Payload() {
+    @NotNull
+    public static Payload world(@Nullable World world) {
+        final Payload payload = new Payload();
+        payload.world = world;
+        return payload;
     }
 
-    /**
-     * A position field.
-     */
-    public Optional<Position> getPosition() {
-        return Optional.ofNullable(position);
+    @NotNull
+    public static Payload teleportRequest(@Nullable TeleportRequest teleportRequest) {
+        final Payload payload = new Payload();
+        payload.teleportRequest = teleportRequest;
+        return payload;
     }
 
-
-    /**
-     * A teleport request field.
-     */
-    public Optional<TeleportRequest> getTeleportRequest() {
-        return Optional.ofNullable(teleportRequest);
+    @NotNull
+    public static Payload userList(@Nullable List<User> target) {
+        final Payload payload = new Payload();
+        payload.userList = target;
+        return payload;
     }
 
-    /**
-     * A string field.
-     */
     public Optional<String> getString() {
         return Optional.ofNullable(string);
     }
 
-    /**
-     * A string list field.
-     */
-    public Optional<List<String>> getStringList() {
-        return Optional.ofNullable(stringList);
+    public Optional<Position> getPosition() {
+        return Optional.ofNullable(position);
+    }
+
+    public Optional<World> getWorld() {
+        return Optional.ofNullable(world);
+    }
+
+    public Optional<TeleportRequest> getTeleportRequest() {
+        return Optional.ofNullable(teleportRequest);
+    }
+
+    public Optional<List<User>> getUserList() {
+        return Optional.ofNullable(userList);
     }
 
 }

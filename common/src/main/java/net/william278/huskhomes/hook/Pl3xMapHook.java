@@ -22,6 +22,7 @@ package net.william278.huskhomes.hook;
 import net.pl3x.map.core.Pl3xMap;
 import net.pl3x.map.core.event.EventHandler;
 import net.pl3x.map.core.event.EventListener;
+import net.pl3x.map.core.event.server.Pl3xMapDisabledEvent;
 import net.pl3x.map.core.event.server.Pl3xMapEnabledEvent;
 import net.pl3x.map.core.event.world.WorldLoadedEvent;
 import net.pl3x.map.core.event.world.WorldUnloadedEvent;
@@ -51,6 +52,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("unused")
+@PluginHook(
+        name = "Pl3xMap",
+        register = PluginHook.Register.ON_ENABLE
+)
 public class Pl3xMapHook extends MapHook implements EventListener {
 
     private static final String ICON_PATH = "/images/icon/registered/";
@@ -60,16 +66,19 @@ public class Pl3xMapHook extends MapHook implements EventListener {
     private final ConcurrentLinkedQueue<Warp> warps = new ConcurrentLinkedQueue<>();
 
     public Pl3xMapHook(@NotNull HuskHomes plugin) {
-        super(plugin, "Pl3xMap");
+        super(plugin);
     }
 
     @Override
-    public void initialize() {
+    public void load() {
         Pl3xMap.api().getEventRegistry().register(this);
+        if (Pl3xMap.api().isEnabled()) {
+            onPl3xMapEnabled(new Pl3xMapEnabledEvent());
+        }
     }
 
     @Override
-    public void updateHome(@NotNull Home home) {
+    public void addHome(@NotNull Home home) {
         publicHomes.remove(home);
         if (isValidPosition(home)) {
             publicHomes.add(home);
@@ -92,7 +101,7 @@ public class Pl3xMapHook extends MapHook implements EventListener {
     }
 
     @Override
-    public void updateWarp(@NotNull Warp warp) {
+    public void addWarp(@NotNull Warp warp) {
         warps.remove(warp);
         if (isValidPosition(warp)) {
             warps.add(warp);
@@ -154,8 +163,16 @@ public class Pl3xMapHook extends MapHook implements EventListener {
 
         // Update home positions
         plugin.runAsync(() -> {
-            plugin.getDatabase().getLocalPublicHomes(plugin).forEach(this::updateHome);
-            plugin.getDatabase().getLocalWarps(plugin).forEach(this::updateWarp);
+            plugin.getDatabase().getLocalPublicHomes(plugin).forEach(this::addHome);
+            plugin.getDatabase().getLocalWarps(plugin).forEach(this::addWarp);
+        });
+    }
+
+    @EventHandler
+    public void onPl3xMapDisabled(@NotNull Pl3xMapDisabledEvent event) {
+        Pl3xMap.api().getWorldRegistry().forEach(world -> {
+            world.getLayerRegistry().unregister(WARPS_LAYER);
+            world.getLayerRegistry().unregister(PUBLIC_HOMES_LAYER);
         });
     }
 

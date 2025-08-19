@@ -69,10 +69,10 @@ public final class Settings {
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static class DatabaseSettings {
 
-        @Comment("Type of database to use (SQLITE, H2, MYSQL, or MARIADB)")
+        @Comment("Type of database to use (SQLITE, H2, MYSQL, MARIADB, or POSTGRESQL)")
         private Database.Type type = Database.Type.SQLITE;
 
-        @Comment("Specify credentials here if you are using MYSQL or MARIADB")
+        @Comment("Specify credentials here if you are using MYSQL, MARIADB, or POSTGRESQL")
         private DatabaseCredentials credentials = new DatabaseCredentials();
 
         @Getter
@@ -89,7 +89,7 @@ public final class Settings {
                     "useUnicode=true", "characterEncoding=UTF-8");
         }
 
-        @Comment({"MYSQL / MARIADB database Hikari connection pool properties",
+        @Comment({"MYSQL / MARIADB / POSTGRESQL database Hikari connection pool properties",
                 "Don't modify this unless you know what you're doing!"})
         private PoolOptions poolOptions = new PoolOptions();
 
@@ -127,18 +127,31 @@ public final class Settings {
                 + "Override with the huskhomes.max_public_homes.<number> permission.")
         private int maxPublicHomes = 10;
 
+        @Comment({"What character to use between owner usernames and home names when specifying a home or public home.",
+                "(e.g. the '.' in: /phome username.home_name). Change if you're using '.' as the Bedrock user prefix."})
+        private String homeDelimiter = ".";
+
         @Comment("Whether permission limits (i.e. huskhomes.max_homes.<number>) should stack "
                 + "if the user inherits multiple nodes.")
         private boolean stackPermissionLimits = false;
 
-        @Comment("Whether users require a permission (huskhomes.command.warp.<warp_name>) to use warps")
+        @Comment("Whether users require a permission (huskhomes.warp.<warp_name>) to use warps")
         private boolean permissionRestrictWarps = false;
 
         @Comment("How long a player has to stand still and not take damage for when teleporting (in seconds) ")
         private int teleportWarmupTime = 5;
 
+        @Comment("Whether the teleport warmup timer should be cancelled if the player takes damage")
+        private boolean teleportWarmupCancelOnDamage = true;
+
+        @Comment("Whether the teleport warmup timer should be cancelled if the player moves")
+        private boolean teleportWarmupCancelOnMove = true;
+
         @Comment("Where the teleport warmup timer should display (CHAT, ACTION_BAR, TITLE, SUBTITLE or NONE)")
         private Locales.DisplaySlot teleportWarmupDisplay = Locales.DisplaySlot.ACTION_BAR;
+
+        @Comment("How long the player should be invulnerable for after teleporting (in seconds)")
+        private int teleportInvulnerabilityTime = 0;
 
         @Comment("How long before received teleport requests expire (in seconds)")
         private int teleportRequestExpiryTime = 60;
@@ -149,9 +162,6 @@ public final class Settings {
 
         @Comment("How many items should be displayed per-page in chat menu lists")
         private int listItemsPerPage = 12;
-
-        @Comment("Whether to provide modern, rich TAB suggestions for commands (if available)")
-        private boolean brigadierTabCompletion = true;
 
         @Comment("Whether the user should always be put back at the /spawn point when they die "
                 + "(ignores beds/respawn anchors)")
@@ -209,6 +219,19 @@ public final class Settings {
 
             @Comment("Whether /back should work with other plugins that use the PlayerTeleportEvent (can conflict)")
             private boolean saveOnTeleportEvent = false;
+
+            @Comment({"List of world names where the /back command cannot RETURN the player to. ",
+                    "A user's last position won't be updated if they die or teleport from these worlds, but they still "
+                            + "will be able to use the command while IN the world."})
+            private List<String> restrictedWorlds = new ArrayList<>();
+
+            public boolean canReturnToWorld(@NotNull World world) {
+                final String name = world.getName();
+                final String formattedName = name.replace("minecraft:", "");
+                return restrictedWorlds.stream()
+                        .map(n -> n.replace("minecraft:", ""))
+                        .noneMatch(n -> n.equalsIgnoreCase(formattedName));
+            }
         }
 
         @Comment("Settings for sound effects")
@@ -248,7 +271,7 @@ public final class Settings {
                 "Do not change unless you know what you're doing"})
         private String clusterId = "main";
 
-        @Comment("Type of network message broker to ues for data synchronization (PLUGIN_MESSAGE or REDIS)")
+        @Comment("Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)")
         private Broker.Type brokerType = Broker.Type.PLUGIN_MESSAGE;
 
         @Comment("Settings for if you're using REDIS as your message broker")
@@ -324,16 +347,31 @@ public final class Settings {
         @Comment("Standard deviation of the normal distribution for distributing players randomly")
         private float distributionStandardDeviation = 2.0f;
 
+        @Comment({"Set the minimum random teleportation height for each world", "List of world_name:height pairs"})
+        private List<String> minHeight = Lists.newArrayList();
+
+        @Comment({"Set the maximum random teleportation height for each world", "List of world_name:height pairs"})
+        private List<String> maxHeight = Lists.newArrayList();
+
         @Comment("List of worlds in which /rtp is disabled. Please note that /rtp does not work well in the nether.")
         private List<String> restrictedWorlds = List.of("world_nether", "world_the_end");
 
         public boolean isWorldRtpRestricted(@NotNull World world) {
             final String name = world.getName();
-            final String filteredName = name.startsWith("minecraft:") ? name.substring(10) : name;
+            final String formattedName = name.replace("minecraft:", "");
             return restrictedWorlds.stream()
-                    .map(n -> n.startsWith("minecraft:") ? n.substring(10) : n)
-                    .anyMatch(n -> n.equalsIgnoreCase(filteredName));
+                    .map(n -> n.replace("minecraft:", ""))
+                    .anyMatch(n -> n.equalsIgnoreCase(formattedName));
         }
+
+        @Comment("Whether or not RTP should perform cross-server.")
+        private boolean crossServer = false;
+
+        @Comment({"List of server in which /rtp is allowed. (Only relevant when using cross server mode WITH REDIS)",
+                "If a server is not defined here the RTP logic has no way of knowing its existence."})
+        private Map<String, List<String>> randomTargetServers = new HashMap<>(
+                Map.of("server", List.of("world", "world_nether", "world_the_end"))
+        );
     }
 
     @Comment("Action cooldown settings. Docs: https://william278.net/docs/huskhomes/cooldowns")
@@ -365,7 +403,7 @@ public final class Settings {
     public static class EconomySettings {
 
         @Comment("Enable economy plugin integration (requires Vault and a compatible Economy plugin)")
-        private boolean enabled = true;
+        private boolean enabled = false;
 
         @Comment("Map of economy actions to costs.")
         private Map<TransactionResolver.Action, Double> economyCosts = TransactionResolver.Action.getEconomyCosts();
@@ -379,6 +417,33 @@ public final class Settings {
             }
             return economyCosts.containsKey(action) ? Optional.of(economyCosts.get(action)) : Optional.empty();
         }
+    }
+
+    @Comment("Plan hook settings. Docs: https://william278.net/docs/huskhomes/plan-hook")
+    private PlanHookSettings plan = new PlanHookSettings();
+
+    @Getter
+    @Configuration
+    @NoArgsConstructor
+    public static class PlanHookSettings {
+
+        @Comment("Hook into Player Analytics to provide HuskHomes statistics in your web dashboard.")
+        private boolean enabled = true;
+
+    }
+
+
+    @Comment("LuckPerms hook settings. Docs: https://william278.net/docs/huskhomes/luckperms-hook")
+    private LuckPermsHookSettings luckperms = new LuckPermsHookSettings();
+
+    @Getter
+    @Configuration
+    @NoArgsConstructor
+    public static class LuckPermsHookSettings {
+
+        @Comment("Hook into LuckPerms for more accurate numerical permission calculations")
+        private boolean enabled = true;
+
     }
 
     @Comment("Web map hook settings. Docs: https://william278.net/docs/huskhomes/map-hooks")

@@ -19,26 +19,31 @@
 
 package net.william278.huskhomes.user;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import net.kyori.adventure.audience.Audience;
 import org.jetbrains.annotations.NotNull;
 
+@Getter
+@AllArgsConstructor
 public final class ConsoleUser implements CommandUser {
 
     @NotNull
     private final Audience audience;
 
-    public ConsoleUser(@NotNull Audience console) {
-        this.audience = console;
+    @NotNull
+    public static ConsoleUser wrap(@NotNull Audience audience) {
+        return new ConsoleUser(audience);
     }
 
     @Override
-    @NotNull
-    public Audience getAudience() {
-        return audience;
+    public boolean isPermissionSet(@NotNull String permission) {
+        return true;
     }
 
     @Override
     public boolean hasPermission(@NotNull String permission) {
         return true;
     }
+
 }

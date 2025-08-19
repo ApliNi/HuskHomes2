@@ -1,5 +1,5 @@
 plugins {
-    id 'xyz.jpenilla.run-paper' version '2.2.3'
+    id 'xyz.jpenilla.run-paper' version '2.3.1'
 }
 
 dependencies {
@@ -7,16 +7,15 @@ dependencies {
     compileOnly project(':common')
 
     compileOnly 'io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT'
-    compileOnly 'org.bstats:bstats-bukkit:3.0.2'
-    compileOnly 'org.jetbrains:annotations:24.1.0'
-    compileOnly 'de.themoep:minedown-adventure:1.7.2-SNAPSHOT'
+    compileOnly 'org.bstats:bstats-bukkit:3.1.0'
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+    compileOnly 'net.william278:minedown:1.8.2'
     compileOnly 'net.william278:DesertWell:2.0.4'
-    compileOnly 'me.lucko:commodore:2.2'
     compileOnly 'com.github.MilkBowl:VaultAPI:1.7.1'
-    compileOnly 'me.clip:placeholderapi:2.11.5'
-    compileOnly 'org.projectlombok:lombok:1.18.30'
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+    compileOnly 'org.projectlombok:lombok:1.18.38'
 
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.38'
 }
 
 shadowJar {
@@ -33,6 +32,7 @@ shadowJar {
     relocate 'com.zaxxer', 'net.william278.huskhomes.libraries'
     relocate 'net.william278.paginedown', 'net.william278.huskhomes.libraries.paginedown'
     relocate 'net.william278.desertwell', 'net.william278.huskhomes.libraries.desertwell'
+    relocate 'net.william278.toilet', 'net.william278.huskhomes.libraries.toilet'
     relocate 'de.exlll', 'net.william278.huskhomes.libraries'
     relocate 'org.json', 'net.william278.huskhomes.libraries.json'
     relocate 'org.yaml.snakeyaml', 'net.william278.huskhomes.libraries.snakeyaml'
@@ -40,13 +40,18 @@ shadowJar {
     relocate 'org.bstats', 'net.william278.huskhomes.libraries.bstats'
     relocate 'io.papermc.lib', 'net.william278.huskhomes.libraries.paperlib'
     relocate 'space.arim.morepaperlib', 'net.william278.huskhomes.libraries.paperlib'
-    relocate 'me.lucko.commodore', 'net.william278.huskhomes.libraries.commodore'
 
     minimize()
 }
 
 tasks {
     runServer {
-        minecraftVersion('1.20.4')
+        minecraftVersion('1.21.4')
+
+        downloadPlugins {
+            url("https://download.luckperms.net/1571/bukkit/loader/LuckPerms-Bukkit-5.4.154.jar")
+            github("MilkBowl", "Vault", "1.7.3", "Vault.jar")
+            github("YiC200333", "XConomy", "2.26.3", "XConomy-Paper-2.26.3.jar")
+        }
     }
 }

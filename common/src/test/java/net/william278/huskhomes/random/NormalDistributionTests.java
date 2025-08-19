@@ -31,7 +31,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @DisplayName("Normal Distribution Tests")
 public class NormalDistributionTests {
@@ -105,7 +104,7 @@ public class NormalDistributionTests {
         final List<Location> locations = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             locations.add(NormalDistributionEngine.generateLocation(
-                    Location.at(0, 0, 0, 0, 0, World.from("TestWorld", UUID.randomUUID())),
+                    Location.at(0, 0, 0, 0, 0, World.from("TestWorld")),
                     MEAN, STANDARD_DEVIATION, SPAWN_RADIUS, MAX_RADIUS));
         }
         return locations;

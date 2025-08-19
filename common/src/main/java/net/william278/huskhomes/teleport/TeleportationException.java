@@ -23,6 +23,7 @@ import lombok.Getter;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.user.CommandUser;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class TeleportationException extends IllegalStateException {
 
@@ -36,10 +37,19 @@ public class TeleportationException extends IllegalStateException {
         this.plugin = plugin;
     }
 
-    public void displayMessage(@NotNull CommandUser user, @NotNull String... args) {
+    public void displayMessage(@Nullable CommandUser user, @NotNull String... args) {
+        if (user == null) {
+            user = plugin.getConsole();
+        }
         switch (type) {
-            case TELEPORTER_NOT_FOUND, TARGET_NOT_FOUND -> plugin.getLocales()
+            case TELEPORTER_NOT_FOUND -> plugin.getLocales()
                     .getLocale("error_player_not_found", args)
+                    .ifPresent(user::sendMessage);
+            case TELEPORTER_INVALID -> plugin.getLocales()
+                    .getLocale("error_player_not_teleportable", args)
+                    .ifPresent(user::sendMessage);
+            case TARGET_NOT_FOUND -> plugin.getLocales()
+                    .getLocale("error_target_not_found")
                     .ifPresent(user::sendMessage);
             case ALREADY_WARMING_UP -> plugin.getLocales()
                     .getLocale("error_already_teleporting")
@@ -73,7 +83,8 @@ public class TeleportationException extends IllegalStateException {
         WARMUP_ALREADY_MOVING,
         WORLD_NOT_FOUND,
         ILLEGAL_TARGET_COORDINATES,
-        CANNOT_TELEPORT_TO_SELF
+        CANNOT_TELEPORT_TO_SELF,
+        TELEPORTER_INVALID
     }
 
 }
