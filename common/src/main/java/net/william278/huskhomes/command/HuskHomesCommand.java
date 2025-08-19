@@ -21,15 +21,22 @@ package net.william278.huskhomes.command;
 
 import de.themoep.minedown.adventure.MineDown;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.william278.desertwell.about.AboutMenu;
 import net.william278.desertwell.util.UpdateChecker;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Locales;
+import net.william278.huskhomes.hook.PluginHook;
 import net.william278.huskhomes.importer.Importer;
+import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.user.CommandUser;
 import net.william278.huskhomes.user.SavedUser;
 import net.william278.huskhomes.user.User;
+import net.william278.huskhomes.util.StatusLine;
 import net.william278.paginedown.PaginatedList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,30 +46,36 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class HuskHomesCommand extends Command implements TabProvider {
+public class HuskHomesCommand extends Command implements UserListTabCompletable {
 
     private static final Map<String, Boolean> SUB_COMMANDS = Map.of(
             "about", false,
             "help", false,
             "reload", true,
+            "status", true,
+            "dump", true,
+            "homeslots", true,
             "import", true,
             "delete", true,
             "update", true
     );
 
-    private boolean importersLoaded = false;
     private final UpdateChecker updateChecker;
     private final AboutMenu aboutMenu;
 
     protected HuskHomesCommand(@NotNull HuskHomes plugin) {
-        super("huskhomes", List.of(), "[" + String.join("|", SUB_COMMANDS.keySet()) + "]", plugin);
+        super(
+                List.of("huskhomes"),
+                "[" + String.join("|", SUB_COMMANDS.keySet()) + "]",
+                plugin
+        );
         addAdditionalPermissions(SUB_COMMANDS);
 
         this.updateChecker = plugin.getUpdateChecker();
         this.aboutMenu = AboutMenu.builder()
                 .title(Component.text("HuskHomes"))
-                .description(Component.text("The powerful and intuitive homes, warps, and teleports plugin/mod"))
-                .version(plugin.getVersion())
+                .description(Component.text("The powerful & intuitive homes, warps, and teleportation suite"))
+                .version(plugin.getPluginVersion())
                 .credits("Author",
                         AboutMenu.Credit.of("William278").description("Click to visit website").url("https://william278.net"))
                 .credits("Contributors",
@@ -83,7 +96,8 @@ public class HuskHomesCommand extends Command implements TabProvider {
                         AboutMenu.Credit.of("Pukejoy_1").description("Bulgarian (bg-bg)"),
                         AboutMenu.Credit.of("WinTone01").description("Turkish, (tr-tr)"),
                         AboutMenu.Credit.of("EmanuelFNC").description("Brazilian Portuguese, (pt-br)"),
-                        AboutMenu.Credit.of("xMattNice_").description("Brazilian Portuguese, (pt-br)"))
+                        AboutMenu.Credit.of("xMattNice_").description("Brazilian Portuguese, (pt-br)"),
+                        AboutMenu.Credit.of("Iamsad_VN").description("Vietnamese, (vi-vn)"))
                 .buttons(
                         AboutMenu.Link.of("https://william278.net/docs/huskhomes").text("Documentation").icon("⛏"),
                         AboutMenu.Link.of("https://github.com/WiIIiam278/HuskHomes/issues").text("Issues").icon("❌").color(TextColor.color(0xff9f0f)),
@@ -102,30 +116,39 @@ public class HuskHomesCommand extends Command implements TabProvider {
 
         switch (action.toLowerCase()) {
             case "about" -> executor.sendMessage(aboutMenu.toComponent());
-            case "help" -> executor.sendMessage(getCommandList(executor)
-                    .getNearestValidPage(parseIntArg(args, 1).orElse(1)));
-            case "reload" -> {
-                try {
-                    plugin.loadConfigs();
-                } catch (Throwable e) {
-                    plugin.log(Level.SEVERE, "Failed to reload config files", e);
-                    executor.sendMessage(new MineDown(
-                            "[Error:](#ff3300) [Failed to reload the plugin. Check console for errors.](#ff7e5e)"
-                    ));
+            case "help" -> executor.sendMessage(
+                    getCommandList(executor).getNearestValidPage(parseIntArg(args, 1).orElse(1))
+            );
+            case "status" -> {
+                getPlugin().getLocales().getLocale("system_status_header").ifPresent(executor::sendMessage);
+                executor.sendMessage(Component.join(
+                        JoinConfiguration.newlines(),
+                        Arrays.stream(StatusLine.values()).map(s -> s.get(plugin)).toList()
+                ));
+            }
+            case "dump" -> {
+                if (!parseStringArg(args, 1).map(s -> s.equals("confirm")).orElse(false)) {
+                    getPlugin().getLocales().getLocale("system_dump_confirm").ifPresent(executor::sendMessage);
                     return;
                 }
 
-                executor.sendMessage(new MineDown(
-                        "[HuskHomes](#00fb9a bold) [| Reloaded config & message files.](#00fb9a)\n"
-                                + "[ℹ If you have modified the database or cross-server message broker settings,"
-                                + " you need to restart your server for these changes to take effect.](gray)"
-                ));
+                getPlugin().getLocales().getLocale("system_dump_started").ifPresent(executor::sendMessage);
+                plugin.runAsync(() -> {
+                    final String url = plugin.createDump(executor);
+                    getPlugin().getLocales().getLocale("system_dump_ready").ifPresent(executor::sendMessage);
+                    executor.sendMessage(Component.text(url).clickEvent(ClickEvent.openUrl(url))
+                            .decorate(TextDecoration.UNDERLINED).color(NamedTextColor.GRAY));
+                });
+            }
+            case "homeslots" -> {
+                if (!plugin.isUsingEconomy() || args.length <= 1) {
+                    plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+                this.manageHomeSlots(executor, removeFirstArg(args));
             }
             case "import" -> {
-                if (!importersLoaded) {
-                    importersLoaded = true;
-                    plugin.registerImporters();
-                }
                 if (plugin.getImporters().isEmpty()) {
                     plugin.getLocales().getLocale("error_no_importers_available")
                             .ifPresent(executor::sendMessage);
@@ -133,6 +156,20 @@ public class HuskHomesCommand extends Command implements TabProvider {
                 }
                 this.importData(executor, removeFirstArg(args));
             }
+            case "reload" -> plugin.runSync(() -> {
+                try {
+                    plugin.unloadHooks(PluginHook.Register.ON_ENABLE, PluginHook.Register.AFTER_LOAD);
+                    plugin.loadConfigs();
+                    plugin.loadHooks(PluginHook.Register.ON_ENABLE, PluginHook.Register.AFTER_LOAD);
+                    plugin.registerHooks(PluginHook.Register.ON_ENABLE, PluginHook.Register.AFTER_LOAD);
+                    plugin.getLocales().getLocale("reload_complete").ifPresent(executor::sendMessage);
+                } catch (Throwable e) {
+                    executor.sendMessage(new MineDown(
+                            "[Error:](#ff3300) [Failed to reload the plugin. Check console for errors.](#ff7e5e)"
+                    ));
+                    plugin.log(Level.SEVERE, "Failed to reload the plugin", e);
+                }
+            });
             case "delete" -> {
                 if (args.length < 2) {
                     plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
@@ -151,14 +188,72 @@ public class HuskHomesCommand extends Command implements TabProvider {
             }
             case "update" -> updateChecker.check().thenAccept(checked -> {
                 if (checked.isUpToDate()) {
-                    plugin.getLocales().getLocale("up_to_date", plugin.getVersion().toString())
+                    plugin.getLocales().getLocale("up_to_date", plugin.getPluginVersion().toString())
                             .ifPresent(executor::sendMessage);
                     return;
                 }
                 plugin.getLocales().getLocale("update_available", checked.getLatestVersion().toString(),
-                        plugin.getVersion().toString()).ifPresent(executor::sendMessage);
+                        plugin.getPluginVersion().toString()).ifPresent(executor::sendMessage);
             });
             default -> plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                    .ifPresent(executor::sendMessage);
+        }
+    }
+
+    // Manage a user's home slots
+    private void manageHomeSlots(@NotNull CommandUser executor, @NotNull String[] args) {
+        // Parse args
+        final Optional<SavedUser> savedUser = parseStringArg(args, 0)
+                .flatMap(u -> plugin.getDatabase().getUser(u));
+        final String actionArg = parseStringArg(args, 1).orElse("view").toLowerCase(Locale.ENGLISH);
+        final Optional<Integer> valueArg = parseIntArg(args, 2);
+
+        // Resolve user
+        if (savedUser.isEmpty()) {
+            plugin.getLocales().getLocale("error_player_not_found", args[0])
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+
+        // Perform actions
+        final SavedUser user = savedUser.get();
+        switch (actionArg) {
+            case "view" -> {
+                final List<Home> homes = plugin.getDatabase().getHomes(user.getUser());
+                plugin.getLocales().getLocale("user_home_slots_status", user.getUsername(),
+                                Integer.toString(user.getHomeSlots()), Integer.toString(homes.size()))
+                        .ifPresent(executor::sendMessage);
+            }
+            case "set", "add", "remove" -> {
+                if (valueArg.isEmpty()) {
+                    plugin.getLocales().getLocale("error_invalid_syntax",
+                                    "/%s homeslots <set|add|remove> <value>".formatted(getName()))
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+
+                // Calculate new slots and apply
+                int value = valueArg.orElseThrow();
+                if (actionArg.equals("add")) {
+                    value = user.getHomeSlots() + value;
+                } else if (actionArg.equals("remove")) {
+                    value = user.getHomeSlots() - value;
+                }
+                if (value < 0) {
+                    plugin.getLocales().getLocale("error_invalid_syntax",
+                                    "/%s homeslots [view|set|add|remove]".formatted(getName()))
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+
+                user.setHomeSlots(value);
+                plugin.getDatabase().updateUserData(user);
+                plugin.getLocales().getLocale("user_home_slots_updated",
+                                user.getUsername(), Integer.toString(user.getHomeSlots()))
+                        .ifPresent(executor::sendMessage);
+            }
+            default -> plugin.getLocales().getLocale("error_invalid_syntax",
+                            "/%s homeslots [view|set|add|remove]".formatted(getName()))
                     .ifPresent(executor::sendMessage);
         }
     }
@@ -167,9 +262,8 @@ public class HuskHomesCommand extends Command implements TabProvider {
     private void importData(@NotNull CommandUser executor, @NotNull String[] args) {
         switch (parseStringArg(args, 0).orElse("list")) {
             case "start" -> parseStringArg(args, 1).ifPresentOrElse(
-                    name -> {
-                        final Optional<Importer> importer = plugin.getImporters().stream()
-                                .filter(available -> available.getImporterName().equalsIgnoreCase(name)).findFirst();
+                    (name) -> {
+                        final Optional<Importer> importer = plugin.getImporterByName(name);
                         if (importer.isEmpty()) {
                             plugin.getLocales().getLocale("error_invalid_importer")
                                     .ifPresent(executor::sendMessage);
@@ -202,9 +296,9 @@ public class HuskHomesCommand extends Command implements TabProvider {
         plugin.runAsync(() -> {
             Optional<SavedUser> savedUser;
             try {
-                savedUser = plugin.getDatabase().getUserData(UUID.fromString(nameOrUuid.get()));
+                savedUser = plugin.getDatabase().getUser(UUID.fromString(nameOrUuid.get()));
             } catch (IllegalArgumentException e) {
-                savedUser = plugin.getDatabase().getUserDataByName(nameOrUuid.get());
+                savedUser = plugin.getDatabase().getUser(nameOrUuid.get());
             }
 
             if (savedUser.isEmpty()) {
@@ -217,14 +311,14 @@ public class HuskHomesCommand extends Command implements TabProvider {
             if (!parseStringArg(args, 1)
                     .map(a -> a.equalsIgnoreCase("confirm")).orElse(false)) {
                 plugin.getLocales().getLocale("delete_player_confirm",
-                        savedUser.get().getUser().getUsername()).ifPresent(executor::sendMessage);
+                        savedUser.get().getUser().getName()).ifPresent(executor::sendMessage);
                 return;
             }
 
             final int homesDeleted = plugin.getManager().homes().deleteAllHomes(user);
-            plugin.getDatabase().deleteUserData(user.getUuid());
+            plugin.getDatabase().deleteUser(user.getUuid());
             plugin.getLocales().getLocale("delete_player_success",
-                            savedUser.get().getUser().getUsername(), Integer.toString(homesDeleted))
+                            savedUser.get().getUser().getName(), Integer.toString(homesDeleted))
                     .ifPresent(executor::sendMessage);
         });
     }
@@ -317,7 +411,7 @@ public class HuskHomesCommand extends Command implements TabProvider {
     private PaginatedList getImporterList() {
         return PaginatedList.of(plugin.getImporters().stream()
                         .map(importer -> plugin.getLocales().getRawLocale("importer_list_item",
-                                        Locales.escapeText(importer.getImporterName()),
+                                        Locales.escapeText(importer.getName()),
                                         Locales.escapeText(importer.getSupportedImportData().stream()
                                                 .map(Importer.ImportData::getName)
                                                 .collect(Collectors.joining(", "))))
@@ -337,16 +431,22 @@ public class HuskHomesCommand extends Command implements TabProvider {
             case 2 -> switch (args[0].toLowerCase()) {
                 case "help" -> IntStream.rangeClosed(1, getCommandList(user).getTotalPages())
                         .mapToObj(Integer::toString).toList();
+                case "dump" -> List.of("confirm");
+                case "homeslots" -> UserListTabCompletable.super.getUsernameList();
                 case "import" -> List.of("start", "list");
                 case "delete" -> List.of("player", "homes", "warps");
                 default -> null;
             };
-            case 3 -> {
-                if (!args[0].equalsIgnoreCase("import") && !args[1].equalsIgnoreCase("start")) {
-                    yield null;
+            case 3 -> switch (args[0].toLowerCase()) {
+                case "homeslots" -> List.of("view", "add", "remove", "set");
+                case "import" -> {
+                    if (!args[1].equalsIgnoreCase("start")) {
+                        yield null;
+                    }
+                    yield plugin.getImporters().stream().map(Importer::getName).toList();
                 }
-                yield plugin.getImporters().stream().map(Importer::getImporterName).toList();
-            }
+                default -> null;
+            };
             default -> null;
         };
     }

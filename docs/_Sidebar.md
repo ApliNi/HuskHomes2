@@ -1,33 +1,39 @@
-## Guides
+## Setup
 * 📚 [[Setup]]
-* 📊 [[Importing Data]]
+* 💾 [[Database]]
+* ✨ [[Redis]]
+* ⚠️ [[Compatibility]]
 * 📄 [[Config Files]]
-* ⛔ [[Managing Access]]
-* 🖥️ [[Commands]]
-* 📜 [[Command Conflicts]]
+* 🔗 [[Troubleshooting]]
 
-## Documentation
-* 📁 [[Database]]
-* ⛅ [[Redis Support]]
-* 📝 [[Translations]]
+## Features
+* 🖥️ [[Commands]]
 * 🟩 [[Plan Hook]]
 * 🗺️ [[Map Hooks]]
-* ⏰ [[Cooldowns]]
 * 💵 [[Economy Hook]]
 * ⚠️ [[Strict Tpahere]]
+* 🔙 [[Back Command]]
 * 🚫 [[Restricted Warps]]
-* 🛏️ [[Global Respawning]]
+* ⏰ [[Cooldowns]]
 * 🌎 [[Global Spawn]]
+* 🛏️ [[Global Respawning]]
+* ❓ [[FAQs]]
+
+## Guides
+* 📊 [[Importing Data]]
+* ⛔ [[Managing Access]]
+* 📜 [[Command Conflicts]]
 * ✍️ [[Placeholders]]
-* ⭐ [[GUI Add-on]]
-* 🕸️ [[Legacy Migration]] (*v2 → v3*)
+* 🎏 [[Translations]]
+
+## Developers
 * 📦 [[API]]
   * 💡 [[API Examples]]
   * ❗ [[API Events]]
 
 ## Links
 * 💻 [GitHub](https://github.com/WiIIiam278/HuskHomes)
-* 📂 [Downloads](https://william278.net/project/huskhomes/)
+* 📂 [Get HuskHomes](https://william278.net/project/huskhomes/)
   * 🔧 [Modrinth](https://modrinth.com/plugin/huskhomes)
   * 🚰 [Spigot](https://www.spigotmc.org/resources/huskhomes.83767/)
   * 🛒 [Polymart](https://polymart.org/resource/huskhomes.284/)

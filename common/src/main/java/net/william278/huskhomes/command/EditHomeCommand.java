@@ -28,19 +28,23 @@ import net.william278.huskhomes.util.TransactionResolver;
 import net.william278.huskhomes.util.ValidationException;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class EditHomeCommand extends SavedPositionCommand<Home> {
 
     public EditHomeCommand(@NotNull HuskHomes plugin) {
-        super("edithome", List.of(), Home.class, List.of("rename", "description", "relocate", "privacy"), plugin);
-        addAdditionalPermissions(arguments.stream().collect(HashMap::new, (m, e) -> m.put(e, false), HashMap::putAll));
+        super(
+                List.of("edithome"),
+                PositionCommandType.HOME,
+                List.of("rename", "description", "relocate", "privacy"),
+                plugin
+        );
     }
 
     @Override
@@ -60,14 +64,11 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                     .forEach(executor::sendMessage);
             return;
         }
-
-        if (!arguments.contains(operation.get().toLowerCase())) {
-            plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
-                    .ifPresent(executor::sendMessage);
+        if (isInvalidOperation(operation.get(), executor)) {
             return;
         }
 
-        switch (operation.get().toLowerCase()) {
+        switch (operation.get().toLowerCase(Locale.ENGLISH)) {
             case "rename" -> setHomeName(executor, home, ownerEditing, args);
             case "description" -> setHomeDescription(executor, home, ownerEditing, args);
             case "relocate" -> setHomePosition(executor, home, ownerEditing);
@@ -102,7 +103,7 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                         .ifPresent(executor::sendMessage);
             } else {
                 plugin.getLocales().getLocale("edit_home_update_name_other",
-                                home.getOwner().getUsername(), original.getName(), newName)
+                                home.getOwner().getName(), original.getName(), newName)
                         .ifPresent(executor::sendMessage);
             }
         });
@@ -135,7 +136,7 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                         .ifPresent(executor::sendMessage);
             } else {
                 plugin.getLocales().getLocale("edit_home_update_description_other",
-                                home.getOwner().getUsername(), home.getName(),
+                                home.getOwner().getName(), home.getName(),
                                 original.getMeta().getDescription(), newDescription)
                         .ifPresent(executor::sendMessage);
             }
@@ -164,7 +165,7 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                         .ifPresent(executor::sendMessage);
             } else {
                 plugin.getLocales().getLocale("edit_home_update_location_other",
-                                home.getOwner().getUsername(), home.getName())
+                                home.getOwner().getName(), home.getName())
                         .ifPresent(executor::sendMessage);
             }
         });
@@ -218,7 +219,7 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                         .ifPresent(executor::sendMessage);
             } else {
                 plugin.getLocales().getLocale("edit_home_privacy_" + privacy + "_success_other",
-                                home.getOwner().getUsername(), home.getName())
+                                home.getOwner().getName(), home.getName())
                         .ifPresent(executor::sendMessage);
             }
         });
@@ -242,13 +243,13 @@ public class EditHomeCommand extends SavedPositionCommand<Home> {
                     .ifPresent(messages::add);
         } else {
             plugin.getLocales().getLocale("edit_home_menu_title_other",
-                            home.getOwner().getUsername(), home.getName())
+                            home.getOwner().getName(), home.getName())
                     .ifPresent(messages::add);
         }
 
         plugin.getLocales().getLocale("edit_home_menu_metadata_" + (!home.isPublic() ? "private" : "public"),
-                        DateTimeFormatter.ofPattern("MMM dd yyyy, HH:mm")
-                                .format(home.getMeta().getCreationTime().atZone(ZoneId.systemDefault())),
+                        home.getMeta().getCreationTimestamp().format(DateTimeFormatter
+                                .ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)),
                         home.getUuid().toString().split(Pattern.quote("-"))[0],
                         home.getUuid().toString())
                 .ifPresent(messages::add);

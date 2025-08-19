@@ -19,29 +19,31 @@
 
 package net.william278.huskhomes.user;
 
+import com.pokeskies.fabricpluginmessaging.PluginMessagePacket;
 import me.lucko.fabric.api.permissions.v0.Permissions;
-import net.fabricmc.fabric.api.dimension.v1.FabricDimensions;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.util.TriState;
 import net.kyori.adventure.audience.Audience;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.s2c.common.CustomPayloadS2CPacket;
+import net.minecraft.entity.Entity;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.TeleportTarget;
 import net.william278.huskhomes.FabricHuskHomes;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.teleport.TeleportationException;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 public class FabricUser extends OnlineUser {
 
+    private final String INVULNERABLE_TAG = plugin.getKey("invulnerable").asString();
     private final ServerPlayerEntity player;
 
     private FabricUser(@NotNull ServerPlayerEntity player, @NotNull FabricHuskHomes plugin) {
@@ -50,36 +52,51 @@ public class FabricUser extends OnlineUser {
     }
 
     @NotNull
+    @ApiStatus.Internal
     public static FabricUser adapt(@NotNull ServerPlayerEntity player, @NotNull FabricHuskHomes plugin) {
         return new FabricUser(player, plugin);
     }
 
     @Override
     public Position getPosition() {
-        return Position.at(
-                player.getX(), player.getY(), player.getZ(),
+        return FabricHuskHomes.Adapter.adapt(
+                player.getPos(),
+                getServerWorld(player),
                 player.getYaw(), player.getPitch(),
-                World.from(
-                        player.getWorld().getRegistryKey().getValue().asString(),
-                        UUID.nameUUIDFromBytes(player.getWorld().getRegistryKey().getValue().asString().getBytes())
-                ),
                 plugin.getServerName()
         );
     }
 
+    @NotNull
+    private ServerWorld getServerWorld(ServerPlayerEntity player) {
+        //#if MC <=12104
+        //$$ return player.getServerWorld();
+        //#else
+        return player.getWorld();
+        //#endif
+    }
+
     @Override
     public Optional<Position> getBedSpawnPosition() {
-        final BlockPos spawn = player.getSpawnPointPosition();
-        if (spawn == null) {
+        //#if MC<=12104
+        //$$ final BlockPos spawn = player.getSpawnPointPosition();
+        //$$ final float angle = player.getSpawnAngle();
+        //$$ final RegistryKey<net.minecraft.world.World> world = player.getSpawnPointDimension();
+        //#else
+        final BlockPos spawn = player.getRespawn() == null ? null : player.getRespawn().pos();
+        final float angle = player.getRespawn() == null ? 0 : player.getRespawn().angle();
+        final RegistryKey<net.minecraft.world.World> world = player.getRespawn() == null ? null : player.getRespawn().dimension();
+        //#endif
+        if (spawn == null || world == null) {
             return Optional.empty();
         }
 
         return Optional.of(Position.at(
                 spawn.getX(), spawn.getY(), spawn.getZ(),
-                player.getSpawnAngle(), 0,
+                angle, 0,
                 World.from(
-                        player.getSpawnPointDimension().getValue().asString(),
-                        UUID.nameUUIDFromBytes(player.getSpawnPointDimension().getValue().asString().getBytes())
+                        world.getValue().asString(),
+                        UUID.nameUUIDFromBytes(world.getValue().asString().getBytes())
                 ),
                 plugin.getServerName()
         ));
@@ -88,6 +105,11 @@ public class FabricUser extends OnlineUser {
     @Override
     public double getHealth() {
         return player.getHealth();
+    }
+
+    @Override
+    public boolean isPermissionSet(@NotNull String permission) {
+        return Permissions.getPermissionValue(player, permission) != TriState.DEFAULT;
     }
 
     @Override
@@ -123,40 +145,55 @@ public class FabricUser extends OnlineUser {
     }
 
     @Override
+    public CompletableFuture<Void> dismount() {
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        plugin.runSync(() -> {
+            player.stopRiding();
+            player.getPassengerList().forEach(Entity::stopRiding);
+            future.complete(null);
+        }, this);
+        return future;
+    }
+
+    @Override
     public void teleportLocally(@NotNull Location location, boolean async) throws TeleportationException {
         final MinecraftServer server = player.getServer();
         if (server == null) {
             throw new TeleportationException(TeleportationException.Type.ILLEGAL_TARGET_COORDINATES, plugin);
         }
+        final ServerWorld world = FabricHuskHomes.Adapter.adapt(location.getWorld(), server);
+        if (world == null) {
+            throw new TeleportationException(TeleportationException.Type.WORLD_NOT_FOUND, plugin);
+        }
 
-        player.dismountVehicle();
-        FabricDimensions.teleport(
-                player,
-                server.getWorld(server.getWorldRegistryKeys().stream()
-                        .filter(key -> key.getValue().equals(Identifier.tryParse(location.getWorld().getName())))
-                        .findFirst().orElseThrow(
-                                () -> new TeleportationException(TeleportationException.Type.WORLD_NOT_FOUND, plugin)
-                        )),
-                new TeleportTarget(
-                        new Vec3d(location.getX(), location.getY(), location.getZ()),
-                        Vec3d.ZERO,
-                        location.getYaw(),
-                        location.getPitch()
-                )
-        );
+        // Synchronously teleport
+        plugin.runSync(() -> {
+            player.stopRiding();
+            player.getPassengerList().forEach(Entity::stopRiding);
+            //#if MC>=12104
+            player.teleport(
+                    world, location.getX(), location.getY(), location.getZ(),
+                    Set.of(),
+                    location.getYaw(), location.getPitch(),
+                    true
+            );
+            //#else
+            //$$ player.teleport(
+            //$$         world, location.getX(), location.getY(), location.getZ(),
+            //$$         location.getYaw(), location.getPitch()
+            //$$ );
+            //#endif
+        }, this);
     }
 
     @Override
-    public void sendPluginMessage(@NotNull String channel, byte[] message) {
-        final PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeIdentifier(parseIdentifier(channel));
-        buf.writeBytes(message);
-        player.networkHandler.sendPacket(new CustomPayloadS2CPacket(buf));
+    public void sendPluginMessage(byte[] message) {
+        ServerPlayNetworking.send(player, new PluginMessagePacket(message));
     }
 
     @Override
     public boolean isMoving() {
-        return player.isTouchingWater() || player.isFallFlying() || player.isSprinting() || player.isSneaking();
+        return player.isTouchingWater() || player.isGliding() || player.isSprinting() || player.isSneaking();
     }
 
     @Override
@@ -164,13 +201,44 @@ public class FabricUser extends OnlineUser {
         return false;
     }
 
-    @NotNull
-    private static Identifier parseIdentifier(@NotNull String channel) {
-        if (channel.equals("BungeeCord")) {
-            return new Identifier("bungeecord", "main");
-        }
-        return Optional.ofNullable(Identifier.tryParse(channel))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid channel name: " + channel));
+    @Override
+    public boolean hasInvulnerability() {
+        return markedAsInvulnerable || player.getCommandTags().contains(INVULNERABLE_TAG);
     }
 
+    @Override
+    public void handleInvulnerability() {
+        final long invulnerableTicks = 20L * plugin.getSettings().getGeneral().getTeleportInvulnerabilityTime();
+        if (invulnerableTicks <= 0) {
+            return;
+        }
+        player.setInvulnerable(true);
+        player.getCommandTags().add(INVULNERABLE_TAG);
+        markedAsInvulnerable = true;
+        plugin.runSyncDelayed(this::removeInvulnerabilityIfPermitted, this, invulnerableTicks);
+    }
+
+    @Override
+    public void removeInvulnerabilityIfPermitted() {
+        if (this.hasInvulnerability()) {
+            player.setInvulnerable(false);
+        }
+        player.removeCommandTag(INVULNERABLE_TAG);
+        markedAsInvulnerable = false;
+    }
+
+    @NotNull
+    public ServerPlayerEntity getPlayer() {
+        return player;
+    }
+
+    /**
+     * Check if the teleporter can teleport.
+     *
+     * @return true if the teleport may complete.
+     */
+    @Override
+    public boolean isValid() {
+        return player.isAlive();
+    }
 }

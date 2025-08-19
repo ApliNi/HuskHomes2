@@ -17,14 +17,6 @@ To enable the Economy Hook on a Spigot/Paper server, install both [Vault](https:
 To enable the Economy Hook on a Fabric server, the [Impactor Economy](https://modrinth.com/mod/impactor) mod must be installed to provide an API for plugins to perform economy operations. Then, set `enabled` to `true` under the `economy` section of [`config.yml`](config-files).
 </details>
 
-<details>
-<summary>Sponge setup</summary>
-
-> **Applies to:** Sponge
-
-To enable the Economy Hook on a Sponge server, you require a mod installed for managing player economy accounts through the Sponge economy API. Then, set `enabled` to `true` under the `economy` section of [`config.yml`](config-files).
-</details>
-
 ### Bypassing economy checks
 Players with the `huskhomes.bypass_economy_checks` [permission node](commands) bypass economy checks and can perform economy actions without paying.
 
@@ -35,23 +27,24 @@ The price will be levied against the player when they attempt to set home and ha
 
 You can configure the number of 'free home slots' a user gets using the `free_home_slots` setting in the `economy` section of the config. The default is `5`.
 
+You can also view and manually adjust a user's home slots in game with the `/huskhomes homeslots <username> [view|add|remove|set]` [command](commands) (permission node: `huskhomes.command.huskhomes.homeslots`).
+
 ## Economy actions
 You can set the economy cost for the following actions in the `costs` section of the `config.yml` file. Note that this section by default only has the `additional_home_slot`, `make_home_public` and `random_teleport` actions defined. Add the other actions to this section of the file and associate a price with them to enable them.
 
 ### Table of actions
 | Action                    | Description                                                 | Default Cost |
 |---------------------------|-------------------------------------------------------------|-------------:|
-| `additional_home_slot`    | When a user wants to buy another home slot                  |    `$100.00` |
-| `make_home_public`        | When a user wants to make their home public                 |     `$50.00` |
-| `random_teleport`         | When a user executes /rtp                                   |     `$25.00` |
-| `back_command`            | When a user executes /back to return to their last position |      `$0.00` |
-| `home_teleport`           | When a user executes /home to teleport to a home            |      `$0.00` |
-| `public_home_teleport`    | When a user uses /phome to teleport to a public home        |      `$0.00` |
-| `warp_teleport`           | When a user uses /warp to teleport to a warp                |      `$0.00` |
-| `spawn_teleport`          | When a user uses /spawn to teleport to spawn                |      `$0.00` |
-| `send_teleport_request`   | When a user sends a teleport request                        |      `$0.00` |
-| `accept_teleport_request` | When a user accepts an incoming teleport request            |      `$0.00` |
-
+| `ADDITIONAL_HOME_SLOT`    | When a user wants to buy another home slot                  |     `100.00` |
+| `MAKE_HOME_PUBLIC`        | When a user wants to make their home public                 |      `50.00` |
+| `RANDOM_TELEPORT`         | When a user executes /rtp                                   |      `25.00` |
+| `BACK_COMMAND`            | When a user executes /back to return to their last position |       `0.00` |
+| `HOME_TELEPORT`           | When a user executes /home to teleport to a home            |       `0.00` |
+| `PUBLIC_HOME_TELEPORT`    | When a user uses /phome to teleport to a public home        |       `0.00` |
+| `WARP_TELEPORT`           | When a user uses /warp to teleport to a warp                |       `0.00` |
+| `SPAWN_TELEPORT`          | When a user uses /spawn to teleport to spawn                |       `0.00` |
+| `SEND_TELEPORT_REQUEST`   | When a user sends a teleport request                        |       `0.00` |
+| `ACCEPT_TELEPORT_REQUEST` | When a user accepts an incoming teleport request            |       `0.00` |
 
 ### Example config
 > **Warning:** You must specify a decimal monetary value in the config.yml. (i.e. `100.00` is valid, but `100` is not.)
@@ -62,20 +55,14 @@ Economy costs are defined under `costs` in the `economy` section of [`config.yml
 <summary>Defining economy costs (config.yml)</summary>
 
 ```yaml
+# Economy settings. Docs: https://william278.net/docs/huskhomes/economy-hook
 economy:
-  # Enable economy plugin integration (requires Vault)
+  # Enable economy plugin integration (requires Vault and a compatible Economy plugin)
   enabled: true
-  # Charge money for perform certain actions. Docs: https://william278.net/docs/huskhomes/economy-hook/
-  costs:
-    additional_home_slot: 100.0
-    make_home_public: 50.0
-    random_teleport: 25.0
-    back_command: 0.0
-    home_teleport: 0.0
-    public_home_teleport: 0.0
-    warp_teleport: 0.0
-    spawn_teleport: 0.0
-    send_teleport_request: 0.0
-    accept_teleport_request: 0.0
+  # Map of economy actions to costs.
+  economy_costs:
+    ADDITIONAL_HOME_SLOT: 100.0
+    MAKE_HOME_PUBLIC: 50.0
+    RANDOM_TELEPORT: 25.0
 ```
 </details>

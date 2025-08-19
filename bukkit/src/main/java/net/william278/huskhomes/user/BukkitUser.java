@@ -21,20 +21,22 @@ package net.william278.huskhomes.user;
 
 import io.papermc.lib.PaperLib;
 import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.network.PluginMessageBroker;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.teleport.TeleportationException;
-import net.william278.huskhomes.util.BukkitAdapter;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.metadata.MetadataValue;
 import org.bukkit.permissions.PermissionAttachmentInfo;
+import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-import space.arim.morepaperlib.scheduling.GracefulScheduling;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.logging.Level;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -42,64 +44,56 @@ import java.util.stream.Collectors;
  */
 public class BukkitUser extends OnlineUser {
 
-    private final Player player;
+    private static final String VANISHED_META_KEY = "vanished";
+    private final NamespacedKey INVULNERABLE_KEY = new NamespacedKey((BukkitHuskHomes) plugin, "invulnerable");
+    private final Player bukkitPlayer;
 
-    private BukkitUser(@NotNull Player player, @NotNull BukkitHuskHomes plugin) {
-        super(player.getUniqueId(), player.getName(), plugin);
-        this.player = player;
+    private BukkitUser(@NotNull Player bukkitPlayer, @NotNull BukkitHuskHomes plugin) {
+        super(bukkitPlayer.getUniqueId(), bukkitPlayer.getName(), plugin);
+        this.bukkitPlayer = bukkitPlayer;
     }
 
-    /**
-     * Adapt a {@link Player} to a {@link OnlineUser}.
-     *
-     * @param player the online {@link Player} to adapt
-     * @return the adapted {@link OnlineUser}
-     */
     @NotNull
+    @ApiStatus.Internal
     public static BukkitUser adapt(@NotNull Player player, @NotNull BukkitHuskHomes plugin) {
         return new BukkitUser(player, plugin);
     }
 
-    /**
-     * Return the {@link Player} wrapped by this {@link BukkitUser}.
-     *
-     * @return the {@link Player} wrapped by this {@link BukkitUser}
-     */
     @NotNull
     public Player getPlayer() {
-        return player;
+        return bukkitPlayer;
     }
 
     @Override
     public Position getPosition() {
-        return Position.at(BukkitAdapter.adaptLocation(player.getLocation()).orElseThrow(
-                        () -> new IllegalStateException("Failed to get the position of a BukkitPlayer (null)")
-                ),
-                plugin.getServerName());
-
+        return BukkitHuskHomes.Adapter.adapt(bukkitPlayer.getLocation(), plugin.getServerName());
     }
 
     @Override
     public Optional<Position> getBedSpawnPosition() {
-        return Optional.ofNullable(player.getBedSpawnLocation()).flatMap(BukkitAdapter::adaptLocation)
-                .map(location -> Position.at(location, plugin.getServerName()));
+        return Optional.ofNullable(bukkitPlayer.getBedSpawnLocation())
+                .map(loc -> BukkitHuskHomes.Adapter.adapt(loc, plugin.getServerName()));
     }
 
     @Override
     public double getHealth() {
-        return player.getHealth();
+        return bukkitPlayer.getHealth();
+    }
+
+    @Override
+    public boolean isPermissionSet(@NotNull String node) {
+        return bukkitPlayer.isPermissionSet(node);
     }
 
     @Override
     public boolean hasPermission(@NotNull String node) {
-        return player.hasPermission(node);
+        return bukkitPlayer.hasPermission(node);
     }
-
 
     @Override
     @NotNull
     public Map<String, Boolean> getPermissions() {
-        return player.getEffectivePermissions().stream()
+        return bukkitPlayer.getEffectivePermissions().stream()
                 .collect(Collectors.toMap(
                         PermissionAttachmentInfo::getPermission,
                         PermissionAttachmentInfo::getValue, (a, b) -> b
@@ -107,64 +101,89 @@ public class BukkitUser extends OnlineUser {
     }
 
     @Override
-    public void teleportLocally(@NotNull Location location, boolean async) throws TeleportationException {
-        // Ensure the world exists
-        final Optional<org.bukkit.Location> resolvedLocation = BukkitAdapter.adaptLocation(location);
-        if (resolvedLocation.isEmpty() || resolvedLocation.get().getWorld() == null) {
+    public CompletableFuture<Void> dismount() {
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        plugin.runSync(() -> {
+            bukkitPlayer.leaveVehicle();
+            bukkitPlayer.eject();
+            future.complete(null);
+        }, this);
+        return future;
+    }
+
+    @Override
+    public void teleportLocally(@NotNull Location target, boolean async) throws TeleportationException {
+        // Ensure the location is valid (world exists, coordinates are within the world border)
+        final org.bukkit.Location location = BukkitHuskHomes.Adapter.adapt(target);
+        if (location.getWorld() == null) {
             throw new TeleportationException(TeleportationException.Type.WORLD_NOT_FOUND, plugin);
         }
-
-        // Ensure the coordinates are within the world limits
-        final org.bukkit.Location bukkitLocation = resolvedLocation.get();
-        if (!bukkitLocation.getWorld().getWorldBorder().isInside(resolvedLocation.get())) {
+        if (!location.getWorld().getWorldBorder().isInside(location)) {
             throw new TeleportationException(TeleportationException.Type.ILLEGAL_TARGET_COORDINATES, plugin);
         }
 
         // Run on the appropriate thread scheduler for this platform
-        final GracefulScheduling scheduler = ((BukkitHuskHomes) plugin).getScheduler();
-        scheduler.entitySpecificScheduler(player).run(
-                () -> {
-                    player.leaveVehicle();
-                    player.eject();
-                    if (async || scheduler.isUsingFolia()) {
-                        PaperLib.teleportAsync(player, bukkitLocation, PlayerTeleportEvent.TeleportCause.PLUGIN);
-                        return;
-                    }
-                    player.teleport(bukkitLocation, PlayerTeleportEvent.TeleportCause.PLUGIN);
-                },
-                () -> plugin.log(Level.WARNING, "User offline when teleporting: " + player.getName())
-        );
+        plugin.runSync(() -> {
+            bukkitPlayer.leaveVehicle();
+            bukkitPlayer.eject();
+            if (async || ((BukkitHuskHomes) plugin).getScheduler().isUsingFolia()) {
+                PaperLib.teleportAsync(bukkitPlayer, location, PlayerTeleportEvent.TeleportCause.PLUGIN);
+                return;
+            }
+            bukkitPlayer.teleport(location, PlayerTeleportEvent.TeleportCause.PLUGIN);
+        }, this);
     }
 
-    /**
-     * Get the player momentum and return if they are moving.
-     *
-     * @return {@code true} if the player is moving, {@code false} otherwise
-     **/
     @Override
     public boolean isMoving() {
-        return player.getVelocity().length() >= 0.1;
+        return bukkitPlayer.getVelocity().length() >= 0.1;
     }
 
-    /**
-     * Return the value of the player's "vanished" metadata tag if they have it.
-     *
-     * @return {@code true} if the player is vanished, {@code false} otherwise
-     */
+    @Override
+    public void sendPluginMessage(byte[] message) {
+        bukkitPlayer.sendPluginMessage((BukkitHuskHomes) plugin, PluginMessageBroker.BUNGEE_CHANNEL_ID, message);
+    }
+
     @Override
     public boolean isVanished() {
-        return player.getMetadata("vanished")
-                .stream()
-                .map(MetadataValue::asBoolean)
-                .findFirst()
-                .orElse(false);
+        return bukkitPlayer.hasMetadata(VANISHED_META_KEY) && bukkitPlayer.getMetadata(VANISHED_META_KEY).stream()
+                .map(MetadataValue::asBoolean).findFirst().orElse(false);
+    }
+
+    @Override
+    public boolean hasInvulnerability() {
+        return markedAsInvulnerable || bukkitPlayer.getPersistentDataContainer()
+                .has(INVULNERABLE_KEY, PersistentDataType.INTEGER);
+    }
+
+    @Override
+    public void handleInvulnerability() {
+        final long invulnerableTicks = 20L * plugin.getSettings().getGeneral().getTeleportInvulnerabilityTime();
+        if (invulnerableTicks <= 0) {
+            return;
+        }
+        markedAsInvulnerable = true;
+        bukkitPlayer.getPersistentDataContainer().set(INVULNERABLE_KEY, PersistentDataType.INTEGER, 1);
+        bukkitPlayer.setInvulnerable(true);
+        plugin.runSyncDelayed(this::removeInvulnerabilityIfPermitted, this, invulnerableTicks);
+    }
+
+    @Override
+    public void removeInvulnerabilityIfPermitted() {
+        if (this.hasInvulnerability()) {
+            bukkitPlayer.setInvulnerable(false);
+        }
+        bukkitPlayer.getPersistentDataContainer().remove(INVULNERABLE_KEY);
+        markedAsInvulnerable = false;
     }
 
     /**
-     * Send a Bukkit plugin message to the player.
+     * Check if the teleporter can teleport.
+     *
+     * @return true if the teleport may complete.
      */
-    public void sendPluginMessage(@NotNull String channel, final byte[] message) {
-        player.sendPluginMessage((BukkitHuskHomes) plugin, channel, message);
+    @Override
+    public boolean isValid() {
+        return getHealth() > 0;
     }
-
 }

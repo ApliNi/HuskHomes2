@@ -32,7 +32,11 @@ import static net.william278.huskhomes.config.Settings.CrossServerSettings.Globa
 public class SetSpawnCommand extends InGameCommand {
 
     protected SetSpawnCommand(@NotNull HuskHomes plugin) {
-        super("setspawn", List.of(), "", plugin);
+        super(
+                List.of("setspawn"),
+                "",
+                plugin
+        );
         setOperatorCommand(true);
     }
 
@@ -50,6 +54,7 @@ public class SetSpawnCommand extends InGameCommand {
             } else {
                 plugin.setServerSpawn(position);
             }
+            plugin.runSync(() -> plugin.setWorldSpawn(position));
         } catch (ValidationException e) {
             e.dispatchWarpError(executor, plugin, global.getWarpName());
             return;

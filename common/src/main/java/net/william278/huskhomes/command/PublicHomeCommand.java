@@ -20,23 +20,28 @@
 package net.william278.huskhomes.command;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.user.CommandUser;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-public class PublicHomeCommand extends HomeCommand implements TabProvider {
+public class PublicHomeCommand extends HomeCommand implements TabCompletable {
 
     protected PublicHomeCommand(@NotNull HuskHomes plugin) {
-        super("phome", List.of("publichome"), plugin);
+        super(
+                List.of("phome", "publichome"),
+                PositionCommandType.PUBLIC_HOME,
+                plugin
+        );
     }
 
     @Override
     public void execute(@NotNull CommandUser executor, @NotNull String[] args) {
         // Display the public home list if no arguments are provided
         if (args.length == 0) {
-            plugin.getCommand(PublicHomeListCommand.class)
-                    .ifPresent(command -> command.showPublicHomeList(executor, 1));
+            plugin.getCommand(PublicHomeListCommand.class).ifPresent(cmd -> cmd
+                    .showPublicHomeList(executor, null, 1));
             return;
         }
         super.execute(executor, args);
@@ -46,7 +51,10 @@ public class PublicHomeCommand extends HomeCommand implements TabProvider {
     @NotNull
     public List<String> suggest(@NotNull CommandUser executor, @NotNull String[] args) {
         if (args.length <= 2) {
-            return filter(plugin.getManager().homes().getPublicHomeIdentifiers(), args);
+            if (args.length >= 1 && args[0].contains(Home.getDelimiter())) {
+                return plugin.getManager().homes().getPublicHomeIdentifierNames();
+            }
+            return plugin.getManager().homes().getPublicHomeNames();
         }
         return List.of();
     }

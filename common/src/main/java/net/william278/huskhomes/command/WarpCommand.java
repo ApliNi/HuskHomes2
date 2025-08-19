@@ -27,12 +27,19 @@ import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class WarpCommand extends SavedPositionCommand<Warp> {
 
     protected WarpCommand(@NotNull HuskHomes plugin) {
-        super("warp", List.of(), Warp.class, List.of("player"), plugin);
+        super(
+                List.of("warp"),
+                PositionCommandType.WARP,
+                List.of(),
+                plugin
+        );
+        addAdditionalPermissions(Map.of("player", true));
     }
 
     @Override
@@ -47,13 +54,11 @@ public class WarpCommand extends SavedPositionCommand<Warp> {
 
     @Override
     public void execute(@NotNull CommandUser executor, @NotNull Warp warp, @NotNull String[] args) {
-        if (plugin.getSettings().getGeneral().isPermissionRestrictWarps()) {
-            if (!executor.hasPermission(warp.getPermission())
-                    && !executor.hasPermission(Warp.getWildcardPermission())) {
-                plugin.getLocales().getLocale("error_no_permission")
-                        .ifPresent(executor::sendMessage);
-                return;
-            }
+        // Check permission restricted warps
+        if (plugin.getSettings().getGeneral().isPermissionRestrictWarps() && !warp.hasPermission(executor)) {
+            plugin.getLocales().getLocale("error_no_permission")
+                    .ifPresent(executor::sendMessage);
+            return;
         }
 
         final Optional<Teleportable> optionalTeleporter = resolveTeleporter(executor, args);

@@ -47,6 +47,19 @@ public interface Teleportable {
      * @return the username string
      */
     @NotNull
-    String getUsername();
+    String getName();
+
+    /**
+     * Check if the teleporter can teleport.
+     *
+     * @return true if the teleport may complete.
+     */
+    boolean isValid();
+
+    @NotNull
+    @Deprecated(since = "4.8")
+    default String getUsername() {
+        return getName();
+    }
 
 }

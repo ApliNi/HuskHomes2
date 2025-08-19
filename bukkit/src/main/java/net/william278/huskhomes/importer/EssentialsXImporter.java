@@ -24,9 +24,8 @@ import com.earth2me.essentials.Warps;
 import com.earth2me.essentials.commands.WarpNotFoundException;
 import net.william278.huskhomes.BukkitHuskHomes;
 import net.william278.huskhomes.HuskHomes;
-import net.william278.huskhomes.position.Position;
+import net.william278.huskhomes.hook.PluginHook;
 import net.william278.huskhomes.user.User;
-import net.william278.huskhomes.util.BukkitAdapter;
 import net.william278.huskhomes.util.ValidationException;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,12 +34,16 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
+@PluginHook(
+        name = "EssentialsX",
+        register = PluginHook.Register.AFTER_LOAD
+)
 public class EssentialsXImporter extends Importer {
 
     private final Essentials essentials;
 
     public EssentialsXImporter(@NotNull HuskHomes plugin) {
-        super("EssentialsX", List.of(ImportData.HOMES, ImportData.WARPS), plugin);
+        super(List.of(ImportData.HOMES, ImportData.WARPS), plugin);
         this.essentials = (Essentials) ((BukkitHuskHomes) plugin).getServer()
                 .getPluginManager().getPlugin("Essentials");
     }
@@ -61,19 +64,16 @@ public class EssentialsXImporter extends Importer {
                 if (essentialsUser.getHome(homeName) == null || essentialsUser.getHome(homeName).getWorld() == null) {
                     continue;
                 }
-                BukkitAdapter.adaptLocation(essentialsUser.getHome(homeName))
-                        .map(location -> Position.at(location, plugin.getServerName()))
-                        .ifPresent(position -> {
-                            plugin.getManager().homes().createHome(
-                                    user,
-                                    this.normalizeName(homeName),
-                                    position,
-                                    true,
-                                    true,
-                                    true
-                            );
-                            homesImported.getAndIncrement();
-                        });
+                plugin.getManager().homes().createHome(
+                        user,
+                        this.normalizeName(homeName),
+                        BukkitHuskHomes.Adapter.adapt(essentialsUser.getHome(homeName), plugin.getServerName()),
+                        true,
+                        false,
+                        true,
+                        true
+                );
+                homesImported.getAndIncrement();
             }
         }
         return homesImported.get();
@@ -87,16 +87,11 @@ public class EssentialsXImporter extends Importer {
                 if (warps.getWarp(warpName) == null || warps.getWarp(warpName).getWorld() == null) {
                     continue;
                 }
-                BukkitAdapter.adaptLocation(warps.getWarp(warpName))
-                        .map(location -> Position.at(location, plugin.getServerName()))
-                        .ifPresent(position -> {
-                            plugin.getManager().warps().createWarp(
-                                    this.normalizeName(warpName),
-                                    position,
-                                    true
-                            );
-                            warpsImported.getAndIncrement();
-                        });
+                plugin.getManager().warps().createWarp(
+                        this.normalizeName(warpName),
+                        BukkitHuskHomes.Adapter.adapt(warps.getWarp(warpName), plugin.getServerName()),
+                        true
+                );
             } catch (WarpNotFoundException e) {
                 plugin.log(Level.WARNING, String.format("Skipped importing warp %s (could not be found)", warpName));
             }
@@ -107,7 +102,7 @@ public class EssentialsXImporter extends Importer {
     @NotNull
     private String normalizeName(@NotNull String name) {
         try {
-            plugin.getValidator().validateName(name);
+            plugin.validateName(name);
             return name;
         } catch (ValidationException e) {
             // Remove spaces

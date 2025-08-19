@@ -20,7 +20,6 @@
 package net.william278.huskhomes.user;
 
 import de.themoep.minedown.adventure.MineDown;
-import de.themoep.minedown.adventure.MineDownParser;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.InvalidKeyException;
 import net.kyori.adventure.key.Key;
@@ -29,14 +28,17 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Locales;
+import net.william278.huskhomes.hook.LuckPermsHook;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.teleport.Teleportable;
 import net.william278.huskhomes.teleport.TeleportationException;
 import org.intellij.lang.annotations.Subst;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A cross-platform representation of a logged-in {@link User}.
@@ -44,6 +46,7 @@ import java.util.*;
 public abstract class OnlineUser extends User implements Teleportable, CommandUser {
 
     protected final HuskHomes plugin;
+    protected boolean markedAsInvulnerable = false;
 
     protected OnlineUser(@NotNull UUID uuid, @NotNull String username, @NotNull HuskHomes plugin) {
         super(uuid, username);
@@ -94,7 +97,7 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      * @param subTitle whether to send the title as a subtitle ({@code true} for a subtitle, {@code false} for a title)
      */
     public void sendTitle(@NotNull MineDown mineDown, boolean subTitle) {
-        final Component message = mineDown.disable(MineDownParser.Option.SIMPLE_FORMATTING).replace().toComponent();
+        final Component message = mineDown.toComponent();
         getAudience().showTitle(Title.title(
                 subTitle ? Component.empty() : message,
                 subTitle ? message : Component.empty()
@@ -107,9 +110,7 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      * @param mineDown the parsed {@link MineDown} to send
      */
     public void sendActionBar(@NotNull MineDown mineDown) {
-        getAudience().sendActionBar(mineDown
-                .disable(MineDownParser.Option.SIMPLE_FORMATTING)
-                .replace().toComponent());
+        getAudience().sendActionBar(mineDown.toComponent());
     }
 
 
@@ -119,9 +120,7 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      * @param mineDown the parsed {@link MineDown} to send
      */
     public void sendMessage(@NotNull MineDown mineDown) {
-        getAudience().sendMessage(mineDown
-                .disable(MineDownParser.Option.SIMPLE_FORMATTING)
-                .replace().toComponent());
+        getAudience().sendMessage(mineDown.toComponent());
     }
 
     /**
@@ -181,6 +180,13 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
     }
 
     /**
+     * Dismount the player, readying them for teleportation.
+     *
+     * @return a {@link CompletableFuture} that completes when the player has dismounted
+     */
+    public abstract CompletableFuture<Void> dismount();
+
+    /**
      * Teleport a player to the specified local {@link Location}.
      *
      * @param location the {@link Location} to teleport the player to
@@ -190,12 +196,11 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
     public abstract void teleportLocally(@NotNull Location location, boolean async) throws TeleportationException;
 
     /**
-     * Send a plugin message to the user.
+     * Send a plugin message to the user on the bungee channel.
      *
-     * @param channel channel to send it on
      * @param message byte array of message data
      */
-    public abstract void sendPluginMessage(@NotNull String channel, byte[] message);
+    public abstract void sendPluginMessage(byte[] message);
 
     /**
      * Returns if a player is moving (i.e., they have momentum).
@@ -211,6 +216,15 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      */
     public abstract boolean isVanished();
 
+    @ApiStatus.Internal
+    public abstract boolean hasInvulnerability();
+
+    @ApiStatus.Internal
+    public abstract void handleInvulnerability();
+
+    @ApiStatus.Internal
+    public abstract void removeInvulnerabilityIfPermitted();
+
     /**
      * Get the maximum number of homes this user may set.
      *
@@ -218,7 +232,7 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      * @param stack           whether to stack numerical permissions that grant the user extra max homes
      * @return the maximum number of homes this user may set
      */
-    public final int getMaxHomes(final int defaultMaxHomes, final boolean stack) {
+    public final int getMaxHomes(int defaultMaxHomes, boolean stack) {
         final List<Integer> homes = getNumericalPermissions("huskhomes.max_homes.");
         if (homes.isEmpty()) {
             return defaultMaxHomes;
@@ -237,7 +251,7 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      * @param stack              whether to stack numerical permissions that grant the user extra public homes
      * @return the number of public home slots this user may set
      */
-    public int getMaxPublicHomes(final int defaultPublicHomes, final boolean stack) {
+    public int getMaxPublicHomes(int defaultPublicHomes, boolean stack) {
         final List<Integer> homes = getNumericalPermissions("huskhomes.max_public_homes.");
         if (homes.isEmpty()) {
             return defaultPublicHomes;
@@ -247,6 +261,20 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
         } else {
             return homes.get(0);
         }
+    }
+
+    /**
+     * Get the largest permission node value for teleport warmup.
+     *
+     * @param defaultTeleportWarmup the default teleport warmup time, if no perms are set
+     * @return the largest permission node value for teleport warmup
+     */
+    public int getMaxTeleportWarmup(int defaultTeleportWarmup) {
+        final List<Integer> homes = getNumericalPermissions("huskhomes.teleport_warmup.");
+        if (homes.isEmpty()) {
+            return defaultTeleportWarmup;
+        }
+        return homes.get(0);
     }
 
     /**
@@ -276,20 +304,23 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
      */
     @NotNull
     protected List<Integer> getNumericalPermissions(@NotNull String nodePrefix) {
-        return getPermissions().entrySet().stream()
-                .filter(Map.Entry::getValue)
-                .filter(permission -> permission.getKey().startsWith(nodePrefix))
-                .filter(permission -> {
-                    try {
-                        // Remove node prefix from the permission and parse as an integer
-                        Integer.parseInt(permission.getKey().substring(nodePrefix.length()));
-                    } catch (final NumberFormatException e) {
-                        return false;
-                    }
-                    return true;
-                })
-                .map(permission -> Integer.parseInt(permission.getKey().substring(nodePrefix.length())))
-                .sorted(Collections.reverseOrder())
-                .toList();
+        return plugin.getHook(LuckPermsHook.class)
+                .map(hook -> hook.getNumericalPermissions(this, nodePrefix))
+                .orElseGet(() -> getPermissions().entrySet().stream().filter(Map.Entry::getValue)
+                        .filter(perm -> perm.getKey().startsWith(nodePrefix))
+                        .filter(perm -> canParse(perm.getKey(), nodePrefix))
+                        .map(p -> Integer.parseInt(p.getKey().substring(nodePrefix.length())))
+                        .sorted(Collections.reverseOrder()).toList());
     }
+
+    // Remove node prefix from the permission and parse as an integer
+    private static boolean canParse(@NotNull String perm, @NotNull String nodePrefix) {
+        try {
+            Integer.parseInt(perm.substring(nodePrefix.length()));
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
 }

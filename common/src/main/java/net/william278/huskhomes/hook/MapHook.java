@@ -40,8 +40,14 @@ public abstract class MapHook extends Hook {
     protected static final String WARP_MARKER_IMAGE_NAME = "warp";
     protected static final String PUBLIC_HOME_MARKER_IMAGE_NAME = "public-home";
 
-    protected MapHook(@NotNull HuskHomes plugin, @NotNull String name) {
-        super(plugin, name);
+    protected MapHook(@NotNull HuskHomes plugin) {
+        super(plugin);
+    }
+
+    @Override
+    public void unload() {
+        getPlugin().getWorlds().forEach(world -> clearHomes(world.getName()));
+        clearWarps();
     }
 
     /**
@@ -52,12 +58,12 @@ public abstract class MapHook extends Hook {
         if (settings.isShowPublicHomes()) {
             plugin.getDatabase()
                     .getLocalPublicHomes(plugin)
-                    .forEach(this::updateHome);
+                    .forEach(this::addHome);
         }
         if (settings.isShowWarps()) {
             plugin.getDatabase()
                     .getLocalWarps(plugin)
-                    .forEach(this::updateWarp);
+                    .forEach(this::addWarp);
         }
     }
 
@@ -66,7 +72,7 @@ public abstract class MapHook extends Hook {
      *
      * @param home the home to update
      */
-    public abstract void updateHome(@NotNull Home home);
+    public abstract void addHome(@NotNull Home home);
 
     /**
      * Removes a home from the map.
@@ -94,7 +100,7 @@ public abstract class MapHook extends Hook {
      *
      * @param warp the warp to update
      */
-    public abstract void updateWarp(@NotNull Warp warp);
+    public abstract void addWarp(@NotNull Warp warp);
 
     /**
      * Removes a warp from the map.
@@ -176,37 +182,43 @@ public abstract class MapHook extends Hook {
         }
 
         @NotNull
-        protected static DynmapHook.MarkerInformationPopup warp(@NotNull Warp warp, @NotNull String thumbnail) {
-            return MarkerInformationPopup.create(warp.getName())
+        protected static MarkerInformationPopup warp(@NotNull Warp warp, @NotNull String thumbnail) {
+            final MarkerInformationPopup popup = MarkerInformationPopup.create(warp.getName())
                     .thumbnail(thumbnail)
-                    .field("Description", warp.getMeta().getDescription())
                     .field("Location", warp.toString())
                     .field("Command", "/warp " + warp.getSafeIdentifier());
+            if (!warp.getMeta().getDescription().isBlank()) {
+                popup.field("Description", warp.getMeta().getDescription());
+            }
+            return popup;
         }
 
         @NotNull
-        protected static DynmapHook.MarkerInformationPopup publicHome(@NotNull Home home, @NotNull String thumbnail) {
-            return MarkerInformationPopup.create(home.getName())
+        protected static MarkerInformationPopup publicHome(@NotNull Home home, @NotNull String thumbnail) {
+            final MarkerInformationPopup popup = MarkerInformationPopup.create(home.getName())
                     .thumbnail(thumbnail)
-                    .field("Owner", home.getOwner().getUsername())
-                    .field("Description", home.getMeta().getDescription())
+                    .field("Owner", home.getOwner().getName())
                     .field("Location", home.toString())
                     .field("Command", "/phome " + home.getSafeIdentifier());
+            if (!home.getMeta().getDescription().isBlank()) {
+                popup.field("Description", home.getMeta().getDescription());
+            }
+            return popup;
         }
 
         @NotNull
-        protected static DynmapHook.MarkerInformationPopup create(@NotNull String title) {
+        protected static MarkerInformationPopup create(@NotNull String title) {
             return new MarkerInformationPopup(title);
         }
 
         @NotNull
-        protected DynmapHook.MarkerInformationPopup thumbnail(@NotNull String thumbnail) {
+        protected MarkerInformationPopup thumbnail(@NotNull String thumbnail) {
             this.thumbnail = thumbnail;
             return this;
         }
 
         @NotNull
-        protected DynmapHook.MarkerInformationPopup field(@NotNull String key, @NotNull String value) {
+        protected MarkerInformationPopup field(@NotNull String key, @NotNull String value) {
             fields.put(key, value);
             return this;
         }
