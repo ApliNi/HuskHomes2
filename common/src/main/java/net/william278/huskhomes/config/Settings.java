@@ -31,6 +31,7 @@ import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
+import redis.clients.jedis.Protocol;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -155,6 +156,9 @@ public final class Settings {
 
         @Comment("How long before received teleport requests expire (in seconds)")
         private int teleportRequestExpiryTime = 60;
+
+        @Comment("Whether /tpa should use the location of the sender when accepted. ")
+        private boolean strictTpaRequests = false;
 
         @Comment("Whether /tpahere should use the location of the sender when sent. "
                 + "Docs: https://william278.net/docs/huskhomes/strict-tpahere/")
@@ -283,8 +287,12 @@ public final class Settings {
         public static class RedisSettings {
             private String host = "localhost";
             private int port = 6379;
+            @Comment("Only change this if you know what you are doing. The default value is 0.")
+            private int database = 0;
             @Comment("Password for your Redis server. Leave blank if you're not using a password.")
             private String password = "";
+            @Comment("Timeout for connecting to the Redis server (in milliseconds)")
+            private int timeout = Protocol.DEFAULT_TIMEOUT;
             private boolean useSsl = false;
 
             @Comment({"Settings for if you're using Redis Sentinels.",
@@ -353,8 +361,8 @@ public final class Settings {
         @Comment({"Set the maximum random teleportation height for each world", "List of world_name:height pairs"})
         private List<String> maxHeight = Lists.newArrayList();
 
-        @Comment("List of worlds in which /rtp is disabled. Please note that /rtp does not work well in the nether.")
-        private List<String> restrictedWorlds = List.of("world_nether", "world_the_end");
+        @Comment("List of worlds in which /rtp is disabled.")
+        private List<String> restrictedWorlds = List.of("world_the_end");
 
         public boolean isWorldRtpRestricted(@NotNull World world) {
             final String name = world.getName();
@@ -368,7 +376,8 @@ public final class Settings {
         private boolean crossServer = false;
 
         @Comment({"List of server in which /rtp is allowed. (Only relevant when using cross server mode WITH REDIS)",
-                "If a server is not defined here the RTP logic has no way of knowing its existence."})
+                "If a server is not defined here the RTP logic has no way of knowing its existence.",
+        "Unless specified, the default world name used as targeted world is the name of the world the player currently standing in."})
         private Map<String, List<String>> randomTargetServers = new HashMap<>(
                 Map.of("server", List.of("world", "world_nether", "world_the_end"))
         );

@@ -19,7 +19,6 @@
 
 package net.william278.huskhomes.util;
 
-import io.papermc.lib.PaperLib;
 import net.william278.huskhomes.BukkitHuskHomes;
 import net.william278.huskhomes.position.Location;
 import org.bukkit.Chunk;
@@ -45,8 +44,7 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
             return CompletableFuture.completedFuture(Optional.empty());
         }
 
-        // Search nearby blocks for a safe location
-        return PaperLib.getChunkAtAsync(bukkitLocation)
+        return BukkitPaperCompat.getChunkAtAsync(getPlugin(), bukkitLocation.getWorld(), bukkitLocation)
                 .thenApply(Chunk::getChunkSnapshot)
                 .thenApply(snapshot -> findSafeLocationNear(
                         location,
@@ -67,8 +65,8 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
      */
     private Optional<Location> findSafeLocationNear(@NotNull Location location, @NotNull ChunkSnapshot chunk,
                                                     int minY, int maxY) {
-        final int chunkX = ((int) location.getX()) & 0xF;
-        final int chunkZ = ((int) location.getZ()) & 0xF;
+        final int chunkX = ((int) Math.floor(location.getX())) & 0xF;
+        final int chunkZ = ((int) Math.floor(location.getZ())) & 0xF;
 
         for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
             for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
@@ -77,28 +75,14 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
                 if (x < 0 || x >= 16 || z < 0 || z >= 16) {
                     continue;
                 }
-                final int y = Math.max((minY + 1), Math.min(chunk.getHighestBlockYAt(x, z), maxY)) + 1;
-                final Material blockType = chunk.getBlockType(x, y - 1, z);
-                final Material bodyBlockType = chunk.getBlockType(x, y, z);
-                final Material headBlockType = chunk.getBlockType(x, y + 1, z);
-                if (isBlockSafeForStanding(blockType.getKey().toString())
-                        && isBlockSafeForOccupation(bodyBlockType.getKey().toString())
-                        && isBlockSafeForOccupation(headBlockType.getKey().toString())) {
-                    double locx = Math.floor(location.getX()) + dx;
-                    if (locx < 0) {
-                        locx += 1.5d;
-                    } else {
-                        locx = locx + 0.5d;
-                    }
-                    double locz = Math.floor(location.getZ()) + dz;
-                    if (locz < 0) {
-                        locz += 1.5d;
-                    } else {
-                        locz = locz + 0.5d;
-                    }
+
+                final Optional<Integer> y = getY(location, chunk, minY, maxY, x, z);
+                if (y.isPresent()) {
+                    double locx = Math.floor(location.getX()) + dx + 0.5d;
+                    double locz = Math.floor(location.getZ()) + dz + 0.5d;
                     return Optional.of(Location.at(
                             locx,
-                            y,
+                            y.get(),
                             locz,
                             location.getWorld()
                     ));
@@ -106,6 +90,30 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
             }
         }
         return Optional.empty();
+    }
+
+    private boolean isSafeLocation(@NotNull ChunkSnapshot chunk, int x, int y, int z) {
+        final Material blockType = chunk.getBlockType(x, y - 1, z);
+        final Material bodyBlockType = chunk.getBlockType(x, y, z);
+        final Material headBlockType = chunk.getBlockType(x, y + 1, z);
+
+        return isBlockSafeForStanding(blockType.getKey().toString())
+                && isBlockSafeForOccupation(bodyBlockType.getKey().toString())
+                && isBlockSafeForOccupation(headBlockType.getKey().toString());
+    }
+
+    private Optional<Integer> getY(@NotNull Location location, @NotNull ChunkSnapshot chunk, int minY, int maxY, int x, int z) {
+        if (location.getWorld().getEnvironment().equals(net.william278.huskhomes.position.World.Environment.NETHER)) {
+            for (int y = minY + 1; y < Math.min(chunk.getHighestBlockYAt(x, z), maxY); y++) {
+                if (isSafeLocation(chunk, x, y, z)) {
+                    return Optional.of(y);
+                }
+            }
+            return Optional.empty();
+        } else {
+            final int y = Math.max((minY + 1), Math.min(chunk.getHighestBlockYAt(x, z), maxY)) + 1;
+            return isSafeLocation(chunk, x, y, z) ? Optional.of(y) : Optional.empty();
+        }
     }
 
     private int getMinHeight(World world) {

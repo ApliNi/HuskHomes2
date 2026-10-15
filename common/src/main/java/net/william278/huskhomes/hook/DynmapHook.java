@@ -32,6 +32,8 @@ import org.dynmap.markers.MarkerSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.commons.text.StringEscapeUtils.unescapeHtml4;
+
 import java.util.Optional;
 
 @PluginHook(

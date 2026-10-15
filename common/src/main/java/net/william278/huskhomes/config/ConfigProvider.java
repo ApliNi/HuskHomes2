@@ -26,11 +26,13 @@ import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.util.UnsafeBlocks;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.logging.Level;
 
 public interface ConfigProvider {
 
@@ -97,14 +99,24 @@ public interface ConfigProvider {
         final YamlConfigurationStore<Locales> store = new YamlConfigurationStore<>(
                 Locales.class, YAML_CONFIGURATION_PROPERTIES.header(Locales.CONFIG_HEADER).build()
         );
-        // Read existing locales if present
         final Path path = getConfigDirectory().resolve(String.format("messages-%s.yml", getSettings().getLanguage()));
         if (Files.exists(path)) {
-            setLocales(store.load(path));
-            return;
+            try {
+                if (Locales.isMineDownFormatted(Files.readString(path, StandardCharsets.UTF_8))) {
+                    final Path backup = path.resolveSibling(path.getFileName() + ".bak." + System.currentTimeMillis());
+                    Files.move(path, backup);
+                    getPlugin().log(Level.WARNING, "Detected a legacy MineDown-formatted locale file. It has been "
+                            + "renamed to '" + backup.getFileName() + "'. Manually convert any custom messages to "
+                            + "MiniMessage before copying them into the newly-generated locale file.");
+                } else {
+                    setLocales(store.load(path));
+                    return;
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("An error occurred backing up the legacy locales", e);
+            }
         }
 
-        // Otherwise, save and read the default locales
         try (InputStream input = getResource(String.format("locales/%s.yml", getSettings().getLanguage()))) {
             final Locales locales = store.read(input);
             store.save(locales, path);
@@ -183,9 +195,28 @@ public interface ConfigProvider {
     void setUnsafeBlocks(@NotNull UnsafeBlocks unsafeBlocks);
 
     /**
-     * Load the unsafe blocks from the internal resource file.
+     * Load the unsafe blocks from the config directory, falling back to the internal resource file.
      */
     default void loadUnsafeBlocks() {
+        final Path path = getConfigDirectory().resolve("safety/unsafe_blocks.yml");
+        if (Files.exists(path)) {
+            try {
+                setUnsafeBlocks(YamlConfigurations.load(
+                        path,
+                        UnsafeBlocks.class,
+                        YAML_CONFIGURATION_PROPERTIES.build()
+                ));
+                getPlugin().log(Level.INFO, "Loaded custom unsafe blocks");
+                return;
+            } catch (Exception e) {
+                getPlugin().log(
+                        Level.WARNING,
+                        "An error occurred loading custom unsafe blocks. Will load built-in file instead.",
+                        e
+                );
+            }
+        }
+
         try (InputStream input = getResource("safety/unsafe_blocks.yml")) {
             setUnsafeBlocks(YamlConfigurations.read(
                     input,

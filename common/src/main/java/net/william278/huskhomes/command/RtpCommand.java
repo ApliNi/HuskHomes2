@@ -167,6 +167,24 @@ public class RtpCommand extends Command implements UserListTabCompletable {
             return Optional.empty();
         }
 
+        // Users can always RTP within the world and server they're currently on
+        if (!worldName.equals(teleporter.getPosition().getWorld().getName()) ||
+                (targetServer != null && !teleporter.getPosition().getServer().equals(targetServer))) {
+            if (!worldName.equals(teleporter.getPosition().getWorld().getName()) &&
+                    !executor.hasPermission(getPermission(worldName))) {
+                plugin.getLocales().getLocale("error_no_permission")
+                        .ifPresent(executor::sendMessage);
+                return Optional.empty();
+            }
+
+            if (targetServer != null && !teleporter.getPosition().getServer().equals(targetServer) &&
+                    !executor.hasPermission(getPermission(targetServer))) {
+                plugin.getLocales().getLocale("error_no_permission")
+                        .ifPresent(executor::sendMessage);
+                return Optional.empty();
+            }
+        }
+
         // Check they have sufficient funds
         if (!plugin.validateTransaction(teleporter, TransactionResolver.Action.RANDOM_TELEPORT)) {
             return Optional.empty();
@@ -193,7 +211,7 @@ public class RtpCommand extends Command implements UserListTabCompletable {
                     .ifPresent(executor::sendMessage);
             return Optional.empty();
         }
-        return localWorld.map(world -> new AbstractMap.SimpleImmutableEntry<>(world, worldName));
+        return localWorld.map(world -> new AbstractMap.SimpleImmutableEntry<>(world, targetServer));
     }
 
     /**
@@ -245,14 +263,14 @@ public class RtpCommand extends Command implements UserListTabCompletable {
      * @param args         Arguments to pass to the RTP engine
      */
     private void executeRtp(@NotNull OnlineUser teleporter, @NotNull CommandUser executor,
-                            @NotNull World world, @NotNull String targetServer, @NotNull String[] args) {
+                            @NotNull World world, @Nullable String targetServer, @NotNull String[] args) {
         // Generate a random position
         plugin.getLocales().getLocale("teleporting_random_generation")
                 .ifPresent(teleporter::sendMessage);
 
         if (plugin.getSettings().getRtp().isCrossServer() && plugin.getSettings().getCrossServer().isEnabled()
             && plugin.getSettings().getCrossServer().getBrokerType() == Broker.Type.REDIS) {
-            if (targetServer.equals(plugin.getServerName())) {
+            if (targetServer == null || targetServer.equals(plugin.getServerName())) {
                 performLocalRTP(teleporter, executor, world, args);
                 return;
             }

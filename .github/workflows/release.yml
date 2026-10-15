@@ -1,116 +1,26 @@
-## Publishes a release to Modrinth and CurseForge when a release is published on GitHub.
-#name: Release Test & Publish
-#
-#on:
-#  release:
-#    types: [ published ]
-#
-#permissions:
-#  contents: read
-#  checks: write
-#
-#jobs:
-#  build:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: 'Checkout for CI 🛎️'
-#        uses: actions/checkout@v3
-#      - name: 'Set up JDK 17 📦'
-#        uses: actions/setup-java@v3
-#        with:
-#          java-version: '17'
-#          distribution: 'temurin'
-#      - name: 'Build with Gradle 🏗️'
-#        uses: gradle/gradle-build-action@v3
-#        with:
-#          arguments: build test publish
-#        env:
-#          RELEASES_MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-#          RELEASES_MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-#      - name: 'Publish Test Report 📊'
-#        uses: mikepenz/action-junit-report@v3
-#        if: success() || failure() # always run even if the previous step fails
-#        with:
-#          report_paths: '**/build/test-results/test/TEST-*.xml'
-#      - name: 'Spigot: Publish to Modrinth & Hangar 🚰'
-#        uses: WiIIiam278/mc-publish@hangar
-#        with:
-#          modrinth-id: J6U9o3JG
-#          modrinth-featured: false
-#          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-#          modrinth-dependencies: |
-#            dynmap | suggests | *
-#            bluemap | suggests | *
-#            pl3xmap | suggests | *
-#            plan | suggests | *
-#          hangar-id: William278/HuskHomes
-#          hangar-token: ${{ secrets.HANGAR_API_KEY }}
-#          files-primary: target/HuskHomes-Paper-${{ github.event.release.tag_name }}.jar
-#          name: HuskHomes (Spigot) v${{ github.event.release.tag_name }}
-#          version: ${{ github.event.release.tag_name }}
-#          version-type: release
-#          changelog: ${{ github.event.release.body }}
-#          loaders: |
-#            spigot
-#            paper
-#            folia
-#          game-versions: |
-#            1.17.1
-#            1.18.2
-#            1.19.4
-#            1.20.4
-#          java: 17
-#      - name: 'Sponge: Publish to Modrinth 🧽'
-#        uses: WiIIiam278/mc-publish@hangar
-#        with:
-#          modrinth-id: J6U9o3JG
-#          modrinth-featured: false
-#          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-#          modrinth-dependencies: |
-#            bluemap | suggests | *
-#            plan | suggests | *
-#          files-primary: target/HuskHomes-Sponge-${{ github.event.release.tag_name }}.jar
-#          name: HuskHomes (Sponge) v${{ github.event.release.tag_name }}
-#          version: ${{ env.version_name }}
-#          version-type: release
-#          changelog: ${{ github.event.release.body }}
-#          loaders: |
-#            sponge
-#          game-versions: |
-#            1.19.4
-#          java: 17
-#      - name: 'Fabric: Publish to Modrinth & CurseForge 🧵'
-#        uses: WiIIiam278/mc-publish@hangar
-#        with:
-#          modrinth-id: J6U9o3JG
-#          modrinth-featured: false
-#          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-#          curseforge-id: 849217
-#          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-#          dependencies: |
-#            fabric-api | requires | *
-#            dynmap | suggests | *
-#            bluemap | suggests | *
-#            pl3xmap | suggests | *
-#            luckperms | suggests | *
-#            plan | suggests | *
-#            impactor | suggests | *
-#            placeholder-api | suggests | *
-#          files-primary: target/HuskHomes-Fabric-${{ github.event.release.tag_name }}.jar
-#          name: HuskHomes (Fabric) v${{ github.event.release.tag_name }}
-#          version: ${{ github.event.release.tag_name }}
-#          version-type: release
-#          changelog: ${{ github.event.release.body }}
-#          loaders: |
-#            fabric
-#          game-versions: |
-#            1.20.4
-#          java: 17
-#      - name: 'Upload GitHub Artifacts 📦'
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: HuskHomes
-#          path: |
-#            target/HuskHomes-Paper-${{ github.event.release.tag_name }}.jar
-#            target/HuskHomes-Sponge-${{ github.event.release.tag_name }}.jar
-#            target/HuskHomes-Fabric-${{ github.event.release.tag_name }}.jar
+# Builds, tests, and publishes artifacts when a GitHub release is published.
+name: Release Test & Publish
+
+on:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  publish:
+    if: github.repository == 'WiIIiam278/HuskHomes'
+    uses: ./.github/workflows/_build_and_publish.yml
+    with:
+      release: true
+      version: ${{ github.event.release.tag_name }}
+      changelog: ${{ github.event.release.body }}
+    secrets:
+      MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      BONES_API_KEY: ${{ secrets.BONES_API_KEY }}
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      HANGAR_API_KEY: ${{ secrets.HANGAR_API_KEY }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}

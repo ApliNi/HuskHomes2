@@ -90,6 +90,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
 
     private final Set<SavedUser> savedUsers = Sets.newHashSet();
     private final Set<UUID> currentlyOnWarmup = Sets.newConcurrentHashSet();
+    private final Set<UUID> warmupDamagedUsers = Sets.newConcurrentHashSet();
     private final Map<UUID, OnlineUser> onlineUserMap = Maps.newHashMap();
     private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
     private final List<Command> commands = Lists.newArrayList();
@@ -133,11 +134,19 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
 
     @Override
     public void onEnable() {
-        this.audiences = BukkitAudiences.create(this);
+        this.createAudiences();
         this.morePaperLib = new MorePaperLib(this);
         this.toilet = BukkitToilet.create(getDumpOptions());
         this.enable();
         this.loadCommands();
+    }
+
+    /**
+     * Create the Adventure audience provider used on Spigot.
+     * Paper overrides this as a no-op and uses the server's native Adventure instead.
+     */
+    protected void createAudiences() {
+        this.audiences = BukkitAudiences.create(this);
     }
 
     @Override

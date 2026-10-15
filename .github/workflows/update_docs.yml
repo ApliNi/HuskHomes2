@@ -1,28 +1,23 @@
-## Update the GitHub Wiki documentation when a push is made to docs/
-#name: Update Docs
-#
-#on:
-#  push:
-#    branches: [ 'master' ]
-#    paths:
-#      - 'docs/**'
-#      - 'workflows/**'
-#    tags-ignore:
-#      - '*'
-#
-#permissions:
-#  contents: write
-#
-#jobs:
-#  deploy-wiki:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: 'Checkout Code'
-#        uses: actions/checkout@v3
-#      - name: 'Push Changes to Wiki'
-#        uses: Andrew-Chen-Wang/github-wiki-action@v3
-#        env:
-#          WIKI_DIR: 'docs/'
-#          GH_TOKEN: ${{ github.token }}
-#          GH_MAIL: 'actions@github.com'
-#          GH_NAME: 'github-actions[bot]'
+# Update the GitHub Wiki documentation when a push is made to docs/
+name: Update Docs
+
+on:
+  push:
+    branches: [ 'master' ]
+    paths:
+      - 'docs/**'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-wiki:
+    if: github.repository == 'WiIIiam278/HuskHomes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout for CI 🛎️'
+        uses: actions/checkout@v6
+      - name: 'Push Docs to Github Wiki 📄️'
+        uses: Andrew-Chen-Wang/github-wiki-action@v5
+        with:
+          path: 'docs'
